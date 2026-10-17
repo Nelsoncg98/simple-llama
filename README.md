@@ -1,83 +1,92 @@
-# ⚡ Simple Llama (llama.cpp)
+# ⚡ Simple Llama
 
-Un orquestador local ultra-ligero escrito en **Python** para correr modelos de LLM locales de llama.cpp en Windows con aceleración CUDA, pensado para portátiles con **8 GB de RAM** y tarjetas **RTX serie 3000/4000 (4–6 GB VRAM)**.
+> **Orquestador local ultra-ligero para [llama.cpp](https://github.com/ggerganov/llama.cpp)**. Diseñado específicamente para portátiles y PCs con recursos moderados (**8 GB de RAM y GPUs RTX de 4–6 GB VRAM**).
 
-> **Objetivo central:** ejecutar inference local al menor coste de memoria. Se logra con tres pilares: **hot-swap** seguro entre modelos, un **watchdog** que libera la GPU en reposo, y la **separación de visión del texto puro**.
+[![Python Version](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![llama.cpp](https://img.shields.io/badge/backend-llama.cpp%20CUDA-green)](https://github.com/ggerganov/llama.cpp)
+[![Dependencies](https://img.shields.io/badge/dependencies-0%20(Pure%20Stdlib)-success)](#-cero-dependencias-externas)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey)](#)
+[![API](https://img.shields.io/badge/API-OpenAI%20%26%20Ollama%20Compatible-blue)](#)
 
 ---
 
-## 📁 Estructura de carpetas
+## 🌟 ¿Qué es Simple Llama?
 
-El orquestador se instala dentro del directorio raíz `llamacpp/`. Este directorio es **obligatorio** porque el orquestador lo usa como base para encontrar el binario oficial (`llama-server.exe`) y las carpetas de modelos (`models/`). Sin estos dos elementos el sistema no puede levantar ningún modelo.
+**Simple Llama** es un intermediario inteligente y panel web ligero que se coloca frente a `llama-server.exe`. Te permite gestionar múltiples modelos GGUF, hacer **hot-swap** instantáneo, liberar la VRAM cuando estás inactivo y conectar editores como **OpenCode, Zed, VS Code o Open WebUI** con compatibilidad OpenAI.
+
+### 💡 Pilares Fundamentales:
+
+1. **Cero Dependencias Externas:** Escrito 100% con la librería estándar de Python (`http.server`, `urllib`, `threading`, `socketserver`). No necesitas `pip install` ni entornos virtuales pesados.
+2. **Servidor Multihilo Concurrente:** No se congela durante la generación de texto. Puedes refrescar el panel o liberar la GPU en cualquier momento.
+3. **Liberación de Memoria (Watchdog):** Si no realizas peticiones durante 10 minutos, apaga el modelo y libera el 100% de la VRAM a 0 MB.
+4. **Poda de RAM Física (`EmptyWorkingSet`):** Mantiene el consumo de memoria del sistema en **< 40 MB** en lugar de los 2.5–3 GB que consume Ollama.
+5. **Acceso Seguro a Red Local (Wi-Fi):** Activa o desactiva con un solo clic el acceso desde tablets o celulares en tu red local con persistencia de configuración.
+
+---
+
+## 🚀 Inicio Rápido (Quickstart)
+
+### 1. Requisitos Previos
+- **Windows 10/11** o Linux con tarjeta gráfica NVIDIA (CUDA).
+- **Python 3.10 o superior** (probado y compatible hasta Python 3.13+).
+- Binario oficial de **[llama.cpp](https://github.com/ggerganov/llama.cpp/releases)** (`llama-server.exe` con CUDA).
+
+### 2. Instalación y Estructura Recomendada
+
+Clona el repositorio dentro de tu directorio de trabajo de `llama.cpp`:
+
+```bash
+git clone https://github.com/Nelsoncg98/simple-llama.git
+```
+
+Estructura de carpetas recomendada:
 
 ```text
-llamacpp/                    # Carpeta raíz del proyecto (base obligatoria)
-├── orchestrator/            # Carpeta del orquestador (se instala aquí)
-│   ├── config.py             # Registro de modelos: rutas, límites de tokens, red y perfiles (fuente de verdad)
-│   ├── manager.py            # Gestor de procesos GPU: hot-swap, watchdog y limpieza de memoria
-│   ├── proxy.py              # Servidor HTTP ligero + proxy streaming de la API del modelo
-│   ├── sync_opencode.py      # Sincronizador resiliente hacia OpenCode / Pi Agent
+llamacpp/                          # Carpeta base donde colocas llama.cpp
+├── simple-llama/                  # Repositorio clonado
+│   ├── proxy.py                   # Servidor HTTP multihilo y proxy API
+│   ├── manager.py                 # Gestor de procesos GPU, watchdog y hot-swap
+│   ├── config.py                  # Descubrimiento modular de modelos
+│   ├── sync_opencode.py           # Sincronizador de clientes (OpenCode / Pi Agent)
 │   ├── templates/
-│   │   └── dashboard.html    # Plantilla visual del panel de control web (se rellena dinámicamente desde config.py)
-│   └── __pycache__/          # Compilación intermedia de Python (no es código fuente)
-├── models/                   # Carpetas de modelos (cada una con su config.json)
-│   ├── gemma/               # Familia Gemma
-│   │   └── config.json
-│   ├── ornith/              # Familia Ornith 1.5
-│   │   └── config.json
-│   └── qwen/                # Familia Qwen
-├── llama-server.exe         # Binario oficial de llama.cpp (aceleración CUDA)
-├── libomp.dll               # Biblioteca OpenMP (requerida por llama-server.exe)
-├── LICENSE-LLVM-OpenMP
-└── README.md                # Documentación del proyecto
+│   │   └── dashboard.html         # Panel de control web
+│   ├── iniciar-servidor.bat       # Lanzador en un clic
+│   └── configopencode.bat         # Script de sincronización de modelos
+├── models/                        # Directorio con tus modelos locales
+│   ├── gemma/                     # Carpeta de familia o modelo
+│   │   ├── gemma-2-9b-it-Q4_K_M.gguf
+│   │   └── config.json            # Configuración del modelo
+│   └── qwen/
+│       ├── Qwen2.5-Coder-7B-Instruct-Q4_K_M.gguf
+│       └── config.json
+├── llama-server.exe               # Binario oficial de llama.cpp (release con CUDA)
+└── *.dll                          # DLLs de CUDA / OpenMP requeridas por llama-server
 ```
 
-### Estructura de `config.json`
+> 💡 **Detección inteligente:** `config.py` detecta automáticamente si `llama-server.exe` y `models/` residen en la carpeta padre (`..`) o dentro de la misma carpeta del orquestador.
 
-Las carpetas de modelos usan el formato **multi-perfil** cuando contienen varios perfiles, o el formato **simple** cuando hay un único perfil. Cada carpeta debe contener su `config.json`.
+### 3. Ejecución
 
-**Formato multi-perfil** (carpeta con varios perfiles):
+Haz doble clic en **`iniciar-servidor.bat`** o ejecuta en tu terminal:
 
-```json
-{
-  "family": "Ornith 1.5 (9B)",
-  "reasoning_budget": 8192,
-  "profiles": {
-    "ornith-low": {
-      "model_path": "Ornith-1.5-9B-GSQ-RCO-IQ3_M.gguf",
-      "ctx": 65536,
-      "desc": "Ornith 1.5 9B - 64k tokens (Caché Q8 puro, ~5.34 GB VRAM)",
-      "badge": "64k Tokens",
-      "badge_color": "#0284c7",
-      "vision": false,
-      "temp": 0.60,
-      "top_p": 0.95,
-      "top_k": 20,
-      "presence_penalty": 0.0,
-      "repeat_penalty": 1.08,
-      "system_prompt": "..."
-    },
-    "ornith-edge": {
-      "model_path": "Ornith-1.5-9B-GSQ-RCO-IQ3_M.gguf",
-      "ctx": 73728,
-      "desc": "Ornith 1.5 9B - 72k tokens (Caché Q8 puro recomendado, ~5.51 GB VRAM)",
-      "badge": "72k Recomendado",
-      "badge_color": "#10b981",
-      "vision": false,
-      "temp": 0.60,
-      "top_p": 0.95,
-      "top_k": 20,
-      "presence_penalty": 0.0,
-      "repeat_penalty": 1.08,
-      "system_prompt": "..."
-    }
-  }
-}
+```bash
+python proxy.py
 ```
 
-**Formato Simple (Perfil Único):**
+Al iniciar:
+- Se abrirá automáticamente tu navegador en **`http://localhost:11435`**.
+- La API compatible con OpenAI estará lista en **`http://localhost:11435/v1`**.
+- El backend nativo de `llama.cpp` se levantará bajo demanda en **`http://localhost:11436`**.
 
-Plantilla con todos los parámetros soportados lista para copiar y pegar en `models/<tu-carpeta>/config.json`. Los valores mostrados son los recomendados/por defecto (cualquier parámetro que omitas tomará automáticamente su valor por defecto de la tabla inferior):
+---
+
+## ⚙️ Configuración de Modelos (`config.json`)
+
+Cada subcarpeta dentro de `models/` debe contener su propio `config.json`. Existen dos formatos admitidos:
+
+### 1. Formato Simple (Un solo perfil)
+
+Plantilla con todos los parámetros soportados lista para copiar y pegar en `models/<tu-carpeta>/config.json`. Los valores mostrados son los recomendados/por defecto (cualquier parámetro que omitas tomará automáticamente su valor de la tabla):
 
 ```json
 {
@@ -103,131 +112,141 @@ Plantilla con todos los parámetros soportados lista para copiar y pegar en `mod
 }
 ```
 
-#### 📋 Tabla de Parámetros y Valores por Defecto
+### 2. Formato Multi-Perfil (Múltiples contextos o variantes)
 
-Si omites cualquier clave en tu `config.json`, el sistema asumirá automáticamente estos valores:
+Útil para definir diferentes tamaños de contexto (`64k`, `72k`, `81k`) o modalidades (`code` vs `chat`) para un mismo modelo sin duplicar archivos:
+
+```json
+{
+  "family": "Ornith 1.5 (9B)",
+  "reasoning_budget": 8192,
+  "profiles": {
+    "ornith-code": {
+      "model_path": "Ornith-1.5-9B.gguf",
+      "ctx": 65536,
+      "desc": "Ornith 1.5 9B - Modo Código (64k tokens, anti-bucle 1.08)",
+      "badge": "64k Code",
+      "badge_color": "#0284c7",
+      "temp": 0.60,
+      "top_p": 0.95,
+      "top_k": 20,
+      "presence_penalty": 0.0,
+      "repeat_penalty": 1.08,
+      "system_prompt": "..."
+    },
+    "ornith-chat": {
+      "model_path": "Ornith-1.5-9B.gguf",
+      "ctx": 98304,
+      "desc": "Ornith 1.5 9B - Modo General (96k tokens híbrido)",
+      "badge": "96k Chat",
+      "badge_color": "#10b981",
+      "cache_type_k": "q8_0",
+      "cache_type_v": "q4_0",
+      "temp": 1.0,
+      "presence_penalty": 1.5,
+      "repeat_penalty": 1.0,
+      "system_prompt": "..."
+    }
+  }
+}
+```
+
+---
+
+### 📋 Referencia de Parámetros
 
 | Parámetro | Tipo | Por Defecto (DEFAULT) | Descripción |
 | :--- | :---: | :---: | :--- |
-| **`family`** | string | *Obligatorio* | Nombre legible de la familia de modelos. |
-| **`model_path`** | string | *Obligatorio* | Archivo `.gguf` dentro de la carpeta. |
-| **`ctx`** | integer | **`8192`** | Tamaño máximo de contexto en tokens. |
-| **`desc`** | string | `"<family> (<ctx>)"` | Descripción en el panel web. |
-| **`badge`** | string | `"<ctx/1024>k Tokens"` | Texto de la etiqueta en el dashboard. |
+| **`family`** | string | *Obligatorio* | Nombre de la familia de modelos mostrado en el dashboard. |
+| **`model_path`** | string | *Obligatorio* | Nombre del archivo `.gguf` dentro de la carpeta. |
+| **`ctx`** | integer | **`8192`** | Tamaño máximo de la ventana de contexto en tokens. |
+| **`desc`** | string | `"<family> (<ctx>)"` | Descripción mostrada en la tarjeta del panel web. |
+| **`badge`** | string | `"<ctx/1024>k Tokens"` | Texto de la etiqueta en la tarjeta. |
 | **`badge_color`** | string | `"#0284c7"` | Color hexadecimal del badge (azul por defecto). |
-| **`vision`** | boolean | **`false`** | Visión activa. Si hay `projector_path`, pasa a `true` automático. |
-| **`projector_path`**| string | `null` | Archivo `mmproj-*.gguf` de visión (opcional). |
-| **`cache_type_k`** | string | **`"q8_0"`** | Cuantización de Keys del KV Cache (`q8_0`, `q4_0`, etc.). |
-| **`cache_type_v`** | string | **`"q8_0"`** | Cuantización de Values del KV Cache (`q8_0`, `q4_0`, etc.). |
-| **`fa`** | string | **`"on"`** | Flash Attention. `"on"` siempre activo (solo pasa a `"off"` con draft externo). |
+| **`vision`** | boolean | **`false`** | Activa capacidades multimodales si existe proyector. |
+| **`projector_path`** | string | `null` | Archivo `mmproj-*.gguf` de visión (opcional). |
+| **`cache_type_k`** | string | **`"q8_0"`** | Tipo de cuantización para las llaves del KV Cache (`q8_0`, `q4_0`, `f16`). |
+| **`cache_type_v`** | string | **`"q8_0"`** | Tipo de cuantización para los valores del KV Cache (`q8_0`, `q4_0`, `f16`). |
+| **`fa`** | string | **`"on"`** | Flash Attention. `"on"` activado para máximo ahorro de VRAM. |
 | **`temp`** | float | **`0.70`** | Temperatura de muestreo (creatividad/entropía). |
-| **`top_p`** | float | **`0.95`** | Nucleus sampling. |
-| **`top_k`** | integer | **`40`** | Muestreo Top-K. |
-| **`min_p`** | float | `null` *(0.0)* | Mínimo de probabilidad (desactivado si se omite). |
-| **`repeat_penalty`**| float | `null` *(1.0)* | Penalización por repetición (1.0 = neutro; 1.08 = anti-bucle). |
-| **`presence_penalty`**| float | `null` *(0.0)* | Penalización de presencia (0.0 = neutro; 1.5 = modo general). |
-| **`reasoning_budget`**| integer | `null` *(-1)* | Límite máximo de tokens en `<think>` (-1 = sin límite; ej: 8192). |
-| **`system_prompt`**| string | `null` | Prompt de sistema inyectado automáticamente. |
-| **`chat_template`**| string | `null` | Template Jinja alternativo (omite para usar el del GGUF). |
-| **`draft_model`** | string | `null` | Archivo `.gguf` del modelo draft para aceleración especulativa. |
+| **`top_p`** | float | **`0.95`** | Muestreo por probabilidad acumulada (Nucleus sampling). |
+| **`top_k`** | integer | **`40`** | Limita el muestreo a los mejores K tokens candidatos. |
+| **`min_p`** | float | `null` *(0.0)* | Probabilidad mínima relativa al token más probable. |
+| **`repeat_penalty`** | float | `null` *(1.0)* | Penalización por repetición (1.08 recomendado para evitar bucles). |
+| **`presence_penalty`** | float | `null` *(0.0)* | Penalización de presencia (1.50 recomendado en perfiles conversacionales). |
+| **`reasoning_budget`** | integer | `null` *(-1)* | Límite máximo de tokens de razonamiento (`<think>`). |
+| **`system_prompt`** | string | `null` | Prompt de sistema inyectado automáticamente en cada petición. |
+| **`chat_template`** | string | `null` | Plantilla Jinja alternativa (omite para usar la del GGUF). |
+| **`draft_model`** | string | `null` | Archivo `.gguf` para aceleración por decoding especulativo. |
 | **`spec_type`** | string | `null` | Tipo de decoding especulativo (ej: `"draft-mtp"`). |
 
-### ¿Por qué se necesita `llamacpp/`?
+---
 
-El orquestador depende de este directorio raíz para funcionar:
+## 🌐 Control de Red Local (Wi-Fi / LAN)
 
-1. **`config.py`** escanea `models/` buscando un `config.json` en cada subcarpeta. Sin esta carpeta no hay ningún modelo que descubrir.
-2. **`manager.py`** levanta el binario `llama-server.exe`, que vive en la raíz. Sin este binario no hay aceleración GPU.
-3. Los scripts `.bat` usan `%~dp0` para posicionarse respecto a su propia carpeta, así el orquestador funciona igual si se mueve de sitio.
+Simple Llama incluye un firewall a nivel de aplicación conmutador de privacidad integrado en el panel web:
+
+- **Modo OFF (Por defecto):** Solo la propia PC (`localhost` / `127.0.0.1`) puede acceder al dashboard y a la API. Cualquier dispositivo externo en la red Wi-Fi recibe un error `403 Forbidden`.
+- **Modo ON:** Permite conexiones de otros dispositivos en tu red local (móvil, tablet, laptop secundaria). El panel muestra tu IP local exacta (ej. `http://192.168.18.78:11435`).
+- **Persistente:** El estado se guarda automáticamente en `settings.json`. Si apagas o reinicias la máquina, se mantendrá tu preferencia anterior.
+- **Seguridad:** El botón solo puede ser accionado desde la propia máquina local para prevenir cambios no autorizados.
 
 ---
 
-## 🧠 ¿Qué hace exactamente cada componente?
+## 📊 Comparativa: Simple Llama vs. Ollama
 
-### 1. `config.py` — Descubrimiento modular de modelos
-
-Es la **fuente de verdad** del sistema. Escanea dinámicamente las carpetas en `models/` buscando un `config.json` en cada una y construye el diccionario global `MODELS`. Soporta dos formatos:
-
-- **Multi-perfil:** `{ "family": "...", "profiles": { "id": { ... } } }`
-- **Perfil simple:** `{ "family": "...", "model_path": "...", ... }`
-
-Si una carpeta aún no tiene `config.json`, se omite silenciosamente. Cada perfil expone: `ctx`, `cache_type_k/v`, `vision`, `projector_path`, `draft_model`, `spec_type`, `fa`, y parámetros de generación (`temp`, `top_p`, `top_k`, `min_p`, `repeat_penalty`, `presence_penalty`, `system_prompt`, `chat_template`, `reasoning_budget`).
-
-### 2. `manager.py` — Gestor de procesos GPU
-
-Instancia un único proceso de `llama-server.exe` y lo conmuta entre modelos sin soltar procesos colgados:
-
-- **Hot-swap seguro:** si el modelo correcto ya corre, retorna al instante; si hay otro corriendo, se detiene limpiamente antes de levantar el nuevo.
-- **Watchdog (auto-apagado):** un hilo en segundo plano vigila `IDLE_TIMEOUT_SECONDS` (10 min) sin actividad y llama a `stop_server()` para liberar VRAM a ~0 MB. Reconoce actividad directa desde el Chat Web nativo leyendo `/slots`.
-- **Optimización de memoria:** `EmptyWorkingSet` del proceso activo para mantener la RAM física en ~40 MB en lugar de ~2.5 GB.
-
-### 3. `proxy.py` — Servidor HTTP + proxy streaming
-
-Un servidor `BaseHTTPRequestHandler` propio que intercepta las peticiones antes de reenviarlas al backend:
-
-- **Listado de modelos** en formato OpenAI (`/v1/models`) y Ollama (`/api/tags`).
-- **Dashboard** dinámico renderizado desde la plantilla HTML.
-- **Sanitización de mensajes** (`sanitize_messages`): inyecta un system prompt por defecto y normaliza roles `system` para evitar excepciones de Jinja.
-- **Proxy streaming:** reenvía peticiones de inferencia a `/v1/chat/completions`, `/completions`, etc., chunk a chunk, preservando el streaming (SSE). Marca la etiqueta de cliente y calcula tokens/velocidad para benchmarks.
-- **Endpoints manuales** del panel web: `POST /load` y `POST /unload` para lanzar o liberar GPU.
-
-### 4. `sync_opencode.py` — Sincronizador resiliente
-
-Pega los modelos descubiertos en la config de otros clientes sin romperse si no están instalados:
-
-- **OpenCode:** lee/escribe `~/.config/opencode/opencode.jsonc`.
-- **Pi Agent:** lee/escribe `~/.pi/agent/models.json`.
+| Característica | Ollama Estándar | Simple Llama |
+| :--- | :---: | :---: |
+| **Consumo de RAM Física** | 2.3 – 3.2 GB | **< 40 MB** (Poda `EmptyWorkingSet`) |
+| **Reposo de GPU (Inactividad)** | Ocupa VRAM continuamente | **Watchdog:** 0 MB VRAM tras 10 min |
+| **Cambio de Modelo (Hot-swap)** | Puede dejar procesos huérfanos | **Atómico y limpio:** Cierra previo antes del nuevo |
+| **Flash Attention (FA)** | Variable según versión | **Forzado en GPU (`-fa on`)** |
+| **Control de KV Cache** | Automático no configurable | **Personalizable (`q8_0`, `q4_0`)** |
+| **Multihilo en Streaming** | Varía | **Sí:** Panel y control accesibles durante inferencia |
+| **Dependencias del Sistema** | Servicio en segundo plano / Go | **Cero dependencias:** Python estándar puro |
 
 ---
 
-## 🚀 ¿Por qué este orquestador y no Ollama tradicional?
+## 🔌 Conexión con Clientes y Editores
 
-| En Ollama estándar | Solución aquí |
-|---|---|
-| Consume 2.3–3.0 GB de RAM física de 8 GB | **< 40 MB** (limpieza `EmptyWorkingSet`) |
-| Proyectores de visión obligatorios ~1 GB aunque solo uses texto | Visión desacoplada: perfiles de texto puro ahorran ~1 GB de VRAM |
-| Contexto sin optimizar desborda a memoria compartida y congela la PC | **Flash Attention (`-fa on`)** + KV Cache Q8_0, todo en GPU |
-| Si no lo usas, sigue ocupando VRAM | **Watchdog** tras 10 min de inactividad apaga la GPU a 0 MB |
-| Cambiar de modelo es lento o deja procesos colgados | **Hot-swap** detiene el modelo previo limpiamente antes del nuevo |
+Simple Llama expone una API compatible con el estándar de OpenAI en el puerto **11435**.
 
----
+### 1. OpenCode / Pi Agent
+Ejecuta el script incluido **`configopencode.bat`** (o `python sync_opencode.py`). Escaneará tus modelos registrados y los inyectará automáticamente en:
+- `~/.config/opencode/opencode.jsonc`
+- `~/.pi/agent/models.json`
 
-## ▶️ Cómo ejecutarlo
+### 2. Zed Editor
+Configura tu proveedor en `settings.json` de Zed:
 
-### Viene con `iniciar-servidor.bat` (opción A)
-
-```bat
-@echo off
-title Mini-Orquestador IA - llama.cpp
-cd /d "%~dp0\orchestrator"
-python proxy.py
-pause
+```json
+{
+  "language_models": {
+    "openai": {
+      "api_url": "http://localhost:11435/v1",
+      "available_models": ["ornith-edge", "qwen-coder"]
+    }
+  }
+}
 ```
 
-- Sirve el dashboard en **11435**, la API en `:11435/v1` y el backend nativo en `:11436`.
-
-### Sincronizar con OpenCode o Pi Agent (opción B)
-
-El archivo `configopencode.bat` se mueve a la carpeta `orchestrator/` para que se pueda sincronizar también.
-
-```bat
-@echo off
-chcp 65001 >nul
-title Sincronizar Modelos con OpenCode
-cls
-cd /d "%~dp0\orchestrator"
-if exist "sync_opencode.py" ( python sync_opencode.py ) else ( echo [!] No se encontró sync_opencode.py. )
-pause
-```
-
-- Pega los modelos descubiertos en `~/.config/opencode/opencode.jsonc` y `~/.pi/agent/models.json`.
+### 3. Open WebUI / Cursor / VS Code
+- **Base URL:** `http://localhost:11435/v1`
+- **API Key:** `sk-local` (o cualquier texto, no es requerido).
 
 ---
 
-## ⚠️ Buenas prácticas para 6 GB de VRAM
+## ⚠️ Recomendaciones para GPUs de 4–6 GB VRAM
 
-1. **Evita nombres reservados** en los perfiles: `server`, `load`, `unload`, `health`, `props`. Usa siempre prefijos descriptivos (p. ej. `qwen-edge`, `ornith-edge`).
-2. **Cálculo de VRAM segura:**
-   - Modelo 4B → ~3.5 GB en VRAM.
-   - Modelo 7B / 9B → ~4.2–4.8 GB; empieza probando con **16k tokens (16,384)**.
-3. **Visión multimodal:** si configuras `"vision": true`, define `projector_path` apuntando al archivo `.gguf` del proyector `mmproj`.
+1. **Evita nombres reservados en perfiles:** No uses `server`, `load`, `unload`, `health`, ni `props`. Usa nombres descriptivos como `ornith-low`, `qwen-code`.
+2. **Estimación de VRAM:**
+   - Modelos **3B – 4B**: ~3.2 GB VRAM.
+   - Modelos **7B – 9B**: ~4.2 – 4.8 GB base.
+   - En una RTX 3050 (6 GB), para modelos 9B con KV Cache Q8 puro (`q8_0/q8_0`), el límite seguro de contexto es **81k tokens** (~5.7 GB). Si requieres contextos mayores (hasta 96k o 128k), usa caché híbrido (`cache_type_v: "q4_0"`).
+3. **Anti-Bucle en Código:** Si tu modelo entra en bucles repetitivos en modo programación, configura `"repeat_penalty": 1.08`.
+
+---
+
+## 📄 Licencia
+
+Distribuido bajo la Licencia **MIT**. Consulta el archivo `LICENSE` para más información.

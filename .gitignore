@@ -1,0 +1,26 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Binarios y modelos pesados
+*.gguf
+*.bin
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Logs y entornos
+*.log
+.env
+settings.json
+.venv/
+env/
+venv/
+
+# IDEs y SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -8,6 +8,10 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey)](#)
 [![API](https://img.shields.io/badge/API-OpenAI%20%26%20Ollama%20Compatible-blue)](#)
 
+<div align="center">
+  <img src="assets/dashboard.png" alt="Simple Llama Web Dashboard" width="100%"/>
+</div>
+
 ---
 
 ## 🌟 ¿Qué es Simple Llama?

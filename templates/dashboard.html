@@ -3,103 +3,286 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Simple Llama (llama.cpp)</title>
+<title>Simple Llama • Local LLM Orchestrator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
 <style>
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    background: #09090b;
-    color: #ededed;
-    margin: 0;
-    padding: 28px 24px;
-    -webkit-font-smoothing: antialiased;
+  :root {
+    --bg-base: #050507;
+    --surface-1: #0d0d10;
+    --surface-2: #141417;
+    --border-subtle: rgba(255, 255, 255, 0.07);
+    --border-hover: rgba(255, 255, 255, 0.16);
+    --text-primary: #f4f4f5;
+    --text-secondary: #a1a1aa;
+    --text-muted: #71717a;
+    --accent: #38bdf8;
+    --accent-glow: rgba(56, 189, 248, 0.15);
+    --emerald: #10b981;
+    --emerald-bg: rgba(16, 185, 129, 0.1);
+    --emerald-border: rgba(16, 185, 129, 0.25);
+    --danger: #f87171;
+    --danger-bg: rgba(248, 113, 113, 0.08);
+    --danger-border: rgba(248, 113, 113, 0.2);
   }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: var(--bg-base);
+    background-image: 
+      radial-gradient(ellipse 70% 35% at 50% -10%, rgba(56, 189, 248, 0.07), transparent 75%),
+      radial-gradient(circle at 100% 100%, rgba(147, 51, 234, 0.03), transparent 40%);
+    background-attachment: fixed;
+    color: var(--text-primary);
+    margin: 0;
+    padding: 32px 24px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
   .container {
-    max-width: 880px;
+    max-width: 900px;
     margin: 0 auto;
   }
+
   header {
-    margin-bottom: 24px;
+    margin-bottom: 28px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 16px;
   }
+
+  .brand {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
   h1 {
-    font-size: 26px;
+    font-size: 24px;
     font-weight: 700;
-    margin: 0 0 6px 0;
-    color: #fafafa;
+    margin: 0;
+    color: #ffffff;
     display: flex;
     align-items: center;
     gap: 10px;
-    letter-spacing: -0.5px;
+    letter-spacing: -0.03em;
   }
+
+  .brand-icon {
+    width: 28px;
+    height: 28px;
+    background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #000;
+    font-size: 14px;
+    font-weight: 900;
+    box-shadow: 0 0 16px var(--accent-glow);
+  }
+
+  .version-chip {
+    font-size: 11px;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-muted);
+    padding: 2px 7px;
+    border-radius: 6px;
+    letter-spacing: 0;
+  }
+
   .subtitle {
-    color: #71717a;
+    color: var(--text-muted);
     margin: 0;
     font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
+
+  .quick-endpoint {
+    background: var(--surface-1);
+    border: 1px solid var(--border-subtle);
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .quick-endpoint:hover {
+    border-color: var(--border-hover);
+    color: #ffffff;
+    background: var(--surface-2);
+  }
+
+  .quick-endpoint svg {
+    width: 14px;
+    height: 14px;
+    opacity: 0.6;
+  }
+
+  /* GPU Status Bar */
   .status-card {
-    background: #111113;
-    border: 1px solid #27272a;
-    border-radius: 12px;
+    background: linear-gradient(180deg, var(--surface-1) 0%, rgba(13, 13, 16, 0.8) 100%);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border-subtle);
+    border-radius: 14px;
     padding: 16px 22px;
-    margin-bottom: 28px;
+    margin-bottom: 32px;
     display: flex;
     justify-content: space-between;
     align-items: center;
     flex-wrap: wrap;
-    gap: 12px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    gap: 14px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
   }
+
+  .status-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
   .status-tag {
-    font-size: 11px;
-    color: #71717a;
+    font-size: 10px;
+    color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 0.08em;
     font-weight: 600;
   }
+
   .status-val {
-    font-size: 18px;
-    font-weight: 700;
-    margin-top: 4px;
-    color: #f4f4f5;
+    font-size: 17px;
+    font-weight: 600;
+    color: #ffffff;
+    letter-spacing: -0.01em;
   }
+
+  /* Live Pulsing Dot */
+  .status-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 20px;
+    letter-spacing: -0.01em;
+  }
+
+  .status-indicator.active {
+    background: var(--emerald-bg);
+    color: var(--emerald);
+    border: 1px solid var(--emerald-border);
+  }
+
+  .status-indicator.idle {
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-muted);
+    border: 1px solid var(--border-subtle);
+  }
+
+  .dot-ping {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    position: relative;
+    background: currentColor;
+  }
+
+  .status-indicator.active .dot-ping::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.4;
+    animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+  }
+
+  @keyframes ping {
+    75%, 100% {
+      transform: scale(2);
+      opacity: 0;
+    }
+  }
+
+  /* Family Sections */
   .family-section {
-    margin-bottom: 32px;
+    margin-bottom: 36px;
   }
+
   .family-title {
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 600;
     margin: 0 0 14px 0;
-    color: #a1a1aa;
+    color: var(--text-secondary);
     display: flex;
     align-items: center;
     gap: 8px;
-    border-bottom: 1px solid #1c1c1f;
+    border-bottom: 1px solid var(--border-subtle);
     padding-bottom: 8px;
-    letter-spacing: -0.3px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
   }
+
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+    gap: 14px;
   }
+
+  /* Model Card */
   .card {
-    background: #111113;
-    border: 1px solid #27272a;
+    background: linear-gradient(180deg, var(--surface-1) 0%, rgba(13, 13, 16, 0.6) 100%);
+    border: 1px solid var(--border-subtle);
     border-radius: 12px;
     padding: 18px;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+    overflow: hidden;
   }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  }
+
   .card:hover {
-    border-color: #3f3f46;
+    border-color: var(--border-hover);
     transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
   }
+
   .card-top {
     margin-bottom: 16px;
   }
+
   .card-header {
     display: flex;
     justify-content: space-between;
@@ -107,76 +290,98 @@
     gap: 8px;
     margin-bottom: 8px;
   }
+
   .card h3 {
     margin: 0;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
-    color: #f4f4f5;
+    color: #ffffff;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: -0.02em;
   }
+
   .badge {
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 600;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    padding: 3px 8px;
-    border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    padding: 2.5px 7px;
+    border-radius: 5px;
     white-space: nowrap;
   }
+
   .card p {
     margin: 0;
-    font-size: 13px;
-    color: #71717a;
-    line-height: 1.45;
+    font-size: 12.5px;
+    color: var(--text-muted);
+    line-height: 1.5;
   }
+
+  /* Ultra-Pro Action Buttons */
   .btn {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 100%;
-    border: 1px solid #3f3f46;
     cursor: pointer;
-    text-align: center;
-    background: #18181b;
-    color: #f4f4f5;
+    background: var(--surface-2);
+    color: var(--text-primary);
+    border: 1px solid var(--border-subtle);
     padding: 9px 14px;
     border-radius: 8px;
     font-weight: 600;
-    font-size: 13px;
-    transition: background 0.15s, border-color 0.15s;
-    box-sizing: border-box;
+    font-size: 12.5px;
+    letter-spacing: -0.01em;
+    transition: all 0.15s ease;
   }
+
   .btn:hover {
-    background: #27272a;
-    border-color: #52525b;
+    background: #1c1c21;
+    border-color: var(--border-hover);
+    color: #ffffff;
   }
+
+  .btn:active {
+    transform: scale(0.98);
+  }
+
   .btn-danger {
-    background: #18181b;
-    color: #f87171;
-    border: 1px solid #7f1d1d;
+    background: var(--danger-bg);
+    color: var(--danger);
+    border: 1px solid var(--danger-border);
     padding: 7px 13px;
     border-radius: 8px;
     font-weight: 600;
     font-size: 12px;
     cursor: pointer;
-    transition: 0.15s;
+    transition: all 0.15s ease;
   }
+
   .btn-danger:hover {
-    background: #7f1d1d;
-    color: #fef2f2;
+    background: rgba(248, 113, 113, 0.18);
+    border-color: var(--danger);
   }
+
   .btn-chat {
-    background: #18181b;
-    color: #4ade80;
-    border: 1px solid #166534;
+    background: var(--emerald-bg);
+    color: var(--emerald);
+    border: 1px solid var(--emerald-border);
     padding: 7px 13px;
     border-radius: 8px;
     text-decoration: none;
     font-weight: 600;
     font-size: 12px;
     margin-left: 8px;
-    transition: 0.15s;
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
   }
+
   .btn-chat:hover {
-    background: #166534;
-    color: #f0fdf4;
+    background: rgba(16, 185, 129, 0.18);
+    border-color: var(--emerald);
   }
+
   .btn-toggle {
     display: inline-flex;
     align-items: center;
@@ -186,55 +391,103 @@
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
-    transition: 0.15s;
-    box-sizing: border-box;
+    transition: all 0.15s ease;
   }
+
   .btn-toggle-off {
-    background: #18181b;
-    color: #71717a;
-    border: 1px solid #27272a;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-muted);
+    border: 1px solid var(--border-subtle);
   }
+
   .btn-toggle-off:hover {
-    background: #27272a;
-    color: #a1a1aa;
-    border-color: #3f3f46;
+    background: var(--surface-2);
+    color: var(--text-secondary);
+    border-color: var(--border-hover);
   }
+
   .btn-toggle-on {
-    background: #052e16;
-    color: #4ade80;
-    border: 1px solid #166534;
+    background: var(--emerald-bg);
+    color: var(--emerald);
+    border: 1px solid var(--emerald-border);
   }
+
   .btn-toggle-on:hover {
-    background: #14532d;
+    background: rgba(16, 185, 129, 0.18);
   }
+
+  /* Footer */
   footer {
-    margin-top: 40px;
+    margin-top: 48px;
     text-align: center;
     font-size: 12px;
     color: #52525b;
     line-height: 1.6;
-    border-top: 1px solid #18181b;
-    padding-top: 20px;
+    border-top: 1px solid var(--border-subtle);
+    padding-top: 24px;
   }
-  code {
+
+  footer code {
+    background: var(--surface-1);
+    color: var(--accent);
+    border: 1px solid var(--border-subtle);
+    padding: 2px 7px;
+    border-radius: 5px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+  }
+
+  /* Toast Notification */
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
     background: #18181b;
-    color: #38bdf8;
     border: 1px solid #27272a;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 12px;
+    color: #ffffff;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  #toast.show {
+    opacity: 1;
+    transform: translateY(0);
   }
 </style>
 </head>
 <body>
 <div class="container">
   <header>
-    <h1>⚡ Simple Llama</h1>
-    <p class="subtitle">Orquestador local ultra-ligero para llama.cpp • Puerto {{PROXY_PORT}}</p>
+    <div class="brand">
+      <h1>
+        <span class="brand-icon">⚡</span> Simple Llama
+        <span class="version-chip">CUDA • v1.5</span>
+      </h1>
+      <p class="subtitle">Orquestador local ultra-ligero para llama.cpp • Puerto {{PROXY_PORT}}</p>
+    </div>
+
+    <div class="quick-endpoint" onclick="copyEndpoint()" title="Clic para copiar URL base de OpenAI">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+      </svg>
+      <span id="endpointText">http://localhost:{{PROXY_PORT}}/v1</span>
+    </div>
   </header>
 
   <div class="status-card">
-    <div>
+    <div class="status-meta">
       <div class="status-tag">Estado de la GPU</div>
       <div class="status-val">{{STATUS_LABEL}}</div>
     </div>
@@ -249,10 +502,22 @@
   <footer>
     Optimizado para portátiles y GPUs de bajo VRAM (4–6 GB) • Cero dependencias externas<br>
     Auto-apagado tras 10 minutos de inactividad para reposo total de la GPU.<br>
-    En OpenCode, Zed y aplicaciones externas, conéctate a: <code>http://localhost:{{PROXY_PORT}}/v1</code>
+    Conéctate desde Zed, OpenCode o Cursor a: <code>http://localhost:{{PROXY_PORT}}/v1</code>
   </footer>
 </div>
+
+<div id="toast">✓ URL de la API copiada al portapapeles</div>
+
 <script>
+  function copyEndpoint() {
+    const text = document.getElementById('endpointText').innerText;
+    navigator.clipboard.writeText(text).then(() => {
+      const toast = document.getElementById('toast');
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2200);
+    });
+  }
+
   const chatButton = document.querySelector('.btn-chat');
   if (chatButton) {
     const chatUrl = new URL(window.location.href);

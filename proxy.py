@@ -161,14 +161,14 @@ def render_dashboard():
 
     if is_active:
         action_buttons = (
-            '<span style="background:#052e16;color:#4ade80;border:1px solid #166534;font-weight:600;padding:5px 12px;border-radius:20px;font-size:12px;">GPU ACTIVA</span> '
-            f'<a href="http://localhost:{BACKEND_PORT}" target="_blank" class="btn-chat">Abrir Chat Web ({BACKEND_PORT}) &#8599;</a> '
+            '<div class="status-indicator active"><span class="dot-ping"></span> GPU ACTIVA</div> '
+            f'<a href="http://localhost:{BACKEND_PORT}" target="_blank" class="btn-chat">Abrir Chat Web &#8599;</a> '
             '<form method="POST" action="/unload" style="display:inline-block; margin-left:8px; margin-bottom:0;">'
             '<button type="submit" class="btn-danger">Liberar GPU</button>'
             '</form>'
         )
     else:
-        action_buttons = '<span style="background:#18181b;color:#71717a;border:1px solid #27272a;font-weight:600;padding:5px 12px;border-radius:20px;font-size:12px;">EN REPOSO (0 MB VRAM)</span>'
+        action_buttons = '<div class="status-indicator idle"><span class="dot-ping"></span> EN REPOSO (0 MB VRAM)</div>'
 
     # Agrupar modelos por familia dinámicamente
     families = {}
@@ -185,14 +185,14 @@ def render_dashboard():
             badge_color = cfg.get("badge_color", "#38bdf8")
             badge_text = cfg.get("badge", f"{cfg['ctx']} tokens")
             btn_text = "Lanzar con Visión" if cfg.get("vision") else "Lanzar en GPU"
-            btn_bg = "background:#2e1065;border-color:#581c87;color:#d8b4fe;" if cfg.get("vision") else ""
+            btn_bg = "background: rgba(147, 51, 234, 0.12); border-color: rgba(147, 51, 234, 0.35); color: #c084fc;" if cfg.get("vision") else ""
 
             cards_html.append(f"""
             <div class="card">
               <div class="card-top">
                 <div class="card-header">
                   <h3>{m_id}</h3>
-                  <span class="badge" style="background:{badge_color}18; color:{badge_color}; border:1px solid {badge_color}33;">{badge_text}</span>
+                  <span class="badge" style="background:{badge_color}14; color:{badge_color}; border:1px solid {badge_color}33;">{badge_text}</span>
                 </div>
                 <p>{cfg['desc']}</p>
               </div>
@@ -216,11 +216,15 @@ def render_dashboard():
     local_ip = get_local_ip()
     if lan_on:
         lan_toggle_html = f'''<form method="POST" action="/toggle-lan" style="display:inline;">
-          <button type="submit" class="btn-toggle btn-toggle-on" title="Acceso Wi-Fi activo ({local_ip}). Clic para desactivar">🌐 Red Local: ON ({local_ip})</button>
+          <button type="submit" class="btn-toggle btn-toggle-on" title="Acceso Wi-Fi activo ({local_ip}). Clic para desactivar">
+            <span class="dot-ping"></span> Red Local: ON ({local_ip})
+          </button>
         </form>'''
     else:
         lan_toggle_html = '''<form method="POST" action="/toggle-lan" style="display:inline;">
-          <button type="submit" class="btn-toggle btn-toggle-off" title="Clic para permitir acceso desde celular/tablet en Wi-Fi">🌐 Red Local: OFF</button>
+          <button type="submit" class="btn-toggle btn-toggle-off" title="Clic para permitir acceso desde celular/tablet en Wi-Fi">
+            <span class="dot-ping"></span> Red Local: OFF
+          </button>
         </form>'''
 
     html = html.replace("{{STATUS_LABEL}}", status_label)

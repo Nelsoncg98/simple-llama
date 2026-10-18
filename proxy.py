@@ -703,8 +703,10 @@ def main():
     print(f"  • Red Local (Wi-Fi/LAN):    {lan_info}")
     print("  • Modelos registrados:")
     for m_id, cfg in MODELS.items():
-        print(f"     - {m_id:<16} ({cfg['ctx']} tokens) [{cfg.get('family', 'General')}]")
-    print(f"  • Auto-apagado tras {IDLE_TIMEOUT_SECONDS // 60} min de inactividad")
+        print(f"     - {m_id:<18} ({cfg['ctx']} tokens) [{cfg.get('family', 'General')}]")
+    t_mins = get_idle_timeout_minutes()
+    timeout_info = f"{t_mins} min de inactividad" if t_mins > 0 else "Desactivado (Nunca)"
+    print(f"  • Auto-apagado:             {timeout_info}")
     print("=" * 64)
     print("Presiona Ctrl+C en esta ventana para cerrar el orquestador.\n")
 

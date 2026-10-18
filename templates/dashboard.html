@@ -175,6 +175,45 @@
     letter-spacing: -0.01em;
   }
 
+  /* Timeout Selector */
+  .timeout-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    transition: all 0.15s ease;
+  }
+
+  .timeout-wrap:hover {
+    border-color: var(--border-hover);
+  }
+
+  .timeout-icon {
+    font-size: 12px;
+    opacity: 0.7;
+  }
+
+  .select-timeout {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    outline: none;
+    padding: 2px 0;
+  }
+
+  .select-timeout option {
+    background: #141417;
+    color: #f4f4f5;
+  }
+
   /* Live Pulsing Dot */
   .status-indicator {
     display: inline-flex;
@@ -229,18 +268,43 @@
     margin-bottom: 36px;
   }
 
+  .family-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+  }
+
   .family-title {
-    font-size: 14px;
+    font-size: 13.5px;
     font-weight: 600;
-    margin: 0 0 14px 0;
+    margin: 0;
     color: var(--text-secondary);
     display: flex;
     align-items: center;
     gap: 8px;
-    border-bottom: 1px solid var(--border-subtle);
-    padding-bottom: 8px;
     text-transform: uppercase;
     letter-spacing: 0.06em;
+  }
+
+  .btn-new-profile {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-muted);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .btn-new-profile:hover {
+    background: var(--surface-2);
+    color: var(--text-primary);
+    border-color: var(--border-hover);
   }
 
   .grid {
@@ -457,12 +521,201 @@
     transform: translateY(10px);
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     pointer-events: none;
-    z-index: 100;
+  /* Card bottom bar & Config button */
+  .card-bottom {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: auto;
   }
 
-  #toast.show {
+  .btn-config {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .btn-config:hover {
+    background: #1c1c21;
+    border-color: var(--border-hover);
+    color: #ffffff;
+  }
+
+  .btn-config:active {
+    transform: scale(0.96);
+  }
+
+  /* Modal System */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(5, 5, 7, 0.78);
+    backdrop-filter: blur(8px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    padding: 20px;
+    opacity: 0;
+    transition: opacity 0.18s ease;
+  }
+
+  .modal-backdrop.open {
+    display: flex;
     opacity: 1;
-    transform: translateY(0);
+  }
+
+  .modal-box {
+    background: #0d0d10;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 14px;
+    width: 100%;
+    max-width: 640px;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 24px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.85);
+    position: relative;
+    transform: scale(0.97);
+    transition: transform 0.18s ease;
+  }
+
+  .modal-backdrop.open .modal-box {
+    transform: scale(1);
+  }
+
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 12px;
+  }
+
+  .modal-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #ffffff;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .modal-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 4px;
+    line-height: 1;
+    border-radius: 4px;
+  }
+
+  .modal-close:hover {
+    color: #ffffff;
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .form-group.full {
+    grid-column: span 2;
+  }
+
+  .form-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .form-input, .form-select, .form-textarea {
+    background: #141417;
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    border-radius: 7px;
+    padding: 8px 11px;
+    font-size: 12.5px;
+    outline: none;
+    transition: border-color 0.15s ease;
+    width: 100%;
+    font-family: inherit;
+  }
+
+  .form-input:focus, .form-select:focus, .form-textarea:focus {
+    border-color: var(--accent);
+  }
+
+  .form-textarea {
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 75px;
+    resize: vertical;
+    line-height: 1.45;
+    font-size: 11.5px;
+  }
+
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 22px;
+    border-top: 1px solid var(--border-subtle);
+    padding-top: 16px;
+  }
+
+  .btn-save {
+    background: #0284c7;
+    color: #ffffff;
+    border: none;
+    padding: 8px 18px;
+    border-radius: 7px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .btn-save:hover {
+    background: #0369a1;
+  }
+
+  .btn-cancel {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border-subtle);
+    padding: 8px 14px;
+    border-radius: 7px;
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .btn-cancel:hover {
+    color: var(--text-primary);
+    border-color: var(--border-hover);
   }
 </style>
 </head>
@@ -493,6 +746,7 @@
     </div>
     <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
       {{LAN_TOGGLE}}
+      {{TIMEOUT_SELECTOR}}
       {{ACTION_BUTTONS}}
     </div>
   </div>
@@ -501,20 +755,333 @@
 
   <footer>
     Optimizado para portátiles y GPUs de bajo VRAM (4–6 GB) • Cero dependencias externas<br>
-    Auto-apagado tras 10 minutos de inactividad para reposo total de la GPU.<br>
+    Auto-apagado inteligente ajustable (10m, 30m, 60m o continuo) para reposo total de la GPU.<br>
     Conéctate desde Zed, OpenCode o Cursor a: <code>http://localhost:{{PROXY_PORT}}/v1</code>
   </footer>
+</div>
+
+<!-- Modal: Editar Perfil de Modelo -->
+<div id="editModal" class="modal-backdrop" onclick="if(event.target===this) closeEditModal()">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 class="modal-title">⚙ Configurar Perfil: <span id="editModelId" style="color:var(--accent);"></span></h3>
+      <button type="button" class="modal-close" onclick="closeEditModal()">&times;</button>
+    </div>
+    <form id="editForm" onsubmit="submitEditForm(event)">
+      <input type="hidden" id="editId" name="id">
+      <div class="form-grid">
+        <div class="form-group full">
+          <label class="form-label">Archivo de Modelo (.gguf)</label>
+          <select id="editModelFile" name="model_file" class="form-select"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Contexto (Tokens)</label>
+          <input type="number" id="editCtx" name="ctx" class="form-input" min="2048" max="262144" step="1024" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Temperatura</label>
+          <input type="number" id="editTemp" name="temp" class="form-input" min="0" max="2" step="0.05" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Top P</label>
+          <input type="number" id="editTopP" name="top_p" class="form-input" min="0" max="1" step="0.05">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Top K</label>
+          <input type="number" id="editTopK" name="top_k" class="form-input" min="1" max="100" step="1">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Repeat Penalty</label>
+          <input type="number" id="editRepeatPenalty" name="repeat_penalty" class="form-input" min="0" max="2" step="0.01">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Presence Penalty</label>
+          <input type="number" id="editPresencePenalty" name="presence_penalty" class="form-input" min="-2" max="2" step="0.1">
+        </div>
+        <div class="form-group">
+          <label class="form-label">KV Cache K</label>
+          <select id="editCacheK" name="cache_type_k" class="form-select">
+            <option value="q8_0">q8_0 (Alta fidelidad recomendado)</option>
+            <option value="q4_0">q4_0 (Máximo ahorro VRAM)</option>
+            <option value="f16">f16 (Precisión completa)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">KV Cache V</label>
+          <select id="editCacheV" name="cache_type_v" class="form-select">
+            <option value="q8_0">q8_0 (Alta fidelidad recomendado)</option>
+            <option value="q4_0">q4_0 (Máximo ahorro VRAM)</option>
+            <option value="f16">f16 (Precisión completa)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Flash Attention</label>
+          <select id="editFa" name="fa" class="form-select">
+            <option value="on">Activado (on)</option>
+            <option value="off">Desactivado (off)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Color del Badge</label>
+          <input type="text" id="editBadgeColor" name="badge_color" class="form-input" placeholder="#38bdf8">
+        </div>
+        <div class="form-group full">
+          <label class="form-label">Etiqueta Badge</label>
+          <input type="text" id="editBadge" name="badge" class="form-input" placeholder="Ej. 12B Edge">
+        </div>
+        <div class="form-group full">
+          <label class="form-label">Descripción</label>
+          <input type="text" id="editDesc" name="desc" class="form-input" placeholder="Descripción breve del modelo">
+        </div>
+        <div class="form-group full">
+          <label class="form-label">System Prompt Personalizado (Opcional)</label>
+          <textarea id="editSystemPrompt" name="system_prompt" class="form-textarea" placeholder="Instrucción maestra para este perfil..."></textarea>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" onclick="closeEditModal()">Cancelar</button>
+        <button type="submit" id="btnSaveEdit" class="btn-save">Guardar Cambios</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Nuevo Perfil -->
+<div id="createModal" class="modal-backdrop" onclick="if(event.target===this) closeCreateModal()">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 class="modal-title">+ Nuevo Perfil: <span id="createFamilyTitle" style="color:var(--accent);"></span></h3>
+      <button type="button" class="modal-close" onclick="closeCreateModal()">&times;</button>
+    </div>
+    <form id="createForm" onsubmit="submitCreateForm(event)">
+      <input type="hidden" id="createFolder" name="folder">
+      <div class="form-grid">
+        <div class="form-group full">
+          <label class="form-label">ID Único del Perfil</label>
+          <input type="text" id="createId" name="id" class="form-input" placeholder="ej. gemma12b-coding-fast" required>
+        </div>
+        <div class="form-group full">
+          <label class="form-label">Archivo de Modelo (.gguf)</label>
+          <select id="createModelFile" name="model_file" class="form-select" required></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Contexto (Tokens)</label>
+          <input type="number" id="createCtx" name="ctx" class="form-input" value="16384" step="1024" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Temperatura</label>
+          <input type="number" id="createTemp" name="temp" class="form-input" value="0.70" step="0.05" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Etiqueta Badge</label>
+          <input type="text" id="createBadge" name="badge" class="form-input" value="Personalizado" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Color del Badge</label>
+          <input type="text" id="createBadgeColor" name="badge_color" class="form-input" value="#10b981">
+        </div>
+        <div class="form-group full">
+          <label class="form-label">Descripción</label>
+          <input type="text" id="createDesc" name="desc" class="form-input" placeholder="Descripción breve del perfil" required>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" onclick="closeCreateModal()">Cancelar</button>
+        <button type="submit" id="btnSaveCreate" class="btn-save">Crear Perfil</button>
+      </div>
+    </form>
+  </div>
 </div>
 
 <div id="toast">✓ URL de la API copiada al portapapeles</div>
 
 <script>
+  function showToast(msg) {
+    const toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2400);
+  }
+
   function copyEndpoint() {
     const text = document.getElementById('endpointText').innerText;
     navigator.clipboard.writeText(text).then(() => {
-      const toast = document.getElementById('toast');
-      toast.classList.add('show');
-      setTimeout(() => toast.classList.remove('show'), 2200);
+      showToast('✓ URL de la API copiada al portapapeles');
+    });
+  }
+
+  function changeIdleTimeout(val) {
+    fetch('/api/settings/timeout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ timeout: parseInt(val) })
+    })
+    .then(r => r.json())
+    .then(data => {
+      const msg = data.timeout === 0 ? '✓ Auto-apagado desactivado (Nunca)' : `✓ Auto-apagado ajustado a ${data.timeout} min`;
+      showToast(msg);
+    })
+    .catch(() => showToast('Error actualizando timeout'));
+  }
+
+  function openEditModal(modelId) {
+    fetch('/api/model/details?model=' + encodeURIComponent(modelId))
+      .then(r => r.json())
+      .then(d => {
+        if (d.error) {
+          showToast(d.error);
+          return;
+        }
+        document.getElementById('editModelId').textContent = d.id;
+        document.getElementById('editId').value = d.id;
+        document.getElementById('editCtx').value = d.ctx;
+        document.getElementById('editTemp').value = d.temp;
+        document.getElementById('editTopP').value = d.top_p !== null ? d.top_p : '';
+        document.getElementById('editTopK').value = d.top_k !== null ? d.top_k : '';
+        document.getElementById('editRepeatPenalty').value = d.repeat_penalty !== null ? d.repeat_penalty : '';
+        document.getElementById('editPresencePenalty').value = d.presence_penalty !== null ? d.presence_penalty : '';
+        document.getElementById('editCacheK').value = d.cache_type_k || 'q8_0';
+        document.getElementById('editCacheV').value = d.cache_type_v || 'q8_0';
+        document.getElementById('editFa').value = d.fa === 'off' ? 'off' : 'on';
+        document.getElementById('editBadge').value = d.badge || '';
+        document.getElementById('editBadgeColor').value = d.badge_color || '#38bdf8';
+        document.getElementById('editDesc').value = d.desc || '';
+        document.getElementById('editSystemPrompt').value = d.system_prompt || '';
+
+        const selectGguf = document.getElementById('editModelFile');
+        selectGguf.innerHTML = '';
+        (d.available_gguf || []).forEach(f => {
+          const opt = document.createElement('option');
+          opt.value = f;
+          opt.textContent = f;
+          if (f === d.model_file) opt.selected = true;
+          selectGguf.appendChild(opt);
+        });
+
+        document.getElementById('editModal').classList.add('open');
+      })
+      .catch(() => showToast('Error al cargar datos del modelo'));
+  }
+
+  function closeEditModal() {
+    document.getElementById('editModal').classList.remove('open');
+  }
+
+  function submitEditForm(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnSaveEdit');
+    btn.disabled = true;
+    btn.textContent = 'Guardando...';
+
+    const payload = {
+      id: document.getElementById('editId').value,
+      model_file: document.getElementById('editModelFile').value,
+      ctx: parseInt(document.getElementById('editCtx').value),
+      temp: parseFloat(document.getElementById('editTemp').value),
+      top_p: document.getElementById('editTopP').value ? parseFloat(document.getElementById('editTopP').value) : null,
+      top_k: document.getElementById('editTopK').value ? parseInt(document.getElementById('editTopK').value) : null,
+      repeat_penalty: document.getElementById('editRepeatPenalty').value ? parseFloat(document.getElementById('editRepeatPenalty').value) : null,
+      presence_penalty: document.getElementById('editPresencePenalty').value ? parseFloat(document.getElementById('editPresencePenalty').value) : null,
+      cache_type_k: document.getElementById('editCacheK').value,
+      cache_type_v: document.getElementById('editCacheV').value,
+      fa: document.getElementById('editFa').value,
+      badge: document.getElementById('editBadge').value,
+      badge_color: document.getElementById('editBadgeColor').value,
+      desc: document.getElementById('editDesc').value,
+      system_prompt: document.getElementById('editSystemPrompt').value,
+    };
+
+    fetch('/api/model/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(res => {
+      btn.disabled = false;
+      btn.textContent = 'Guardar Cambios';
+      if (res.success) {
+        closeEditModal();
+        showToast('✓ Perfil guardado correctamente');
+        setTimeout(() => location.reload(), 900);
+      } else {
+        showToast('Error: ' + res.message);
+      }
+    })
+    .catch(() => {
+      btn.disabled = false;
+      btn.textContent = 'Guardar Cambios';
+      showToast('Error de red al guardar');
+    });
+  }
+
+  function openCreateModal(folderName, familyName) {
+    document.getElementById('createFolder').value = folderName;
+    document.getElementById('createFamilyTitle').textContent = familyName;
+    document.getElementById('createId').value = '';
+    document.getElementById('createDesc').value = '';
+
+    fetch('/api/model/folders')
+      .then(r => r.json())
+      .then(folders => {
+        const folderData = folders[folderName];
+        const selectGguf = document.getElementById('createModelFile');
+        selectGguf.innerHTML = '';
+        if (folderData && folderData.gguf_files) {
+          folderData.gguf_files.forEach(f => {
+            const opt = document.createElement('option');
+            opt.value = f;
+            opt.textContent = f;
+            selectGguf.appendChild(opt);
+          });
+        }
+        document.getElementById('createModal').classList.add('open');
+      })
+      .catch(() => showToast('Error al cargar archivos'));
+  }
+
+  function closeCreateModal() {
+    document.getElementById('createModal').classList.remove('open');
+  }
+
+  function submitCreateForm(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnSaveCreate');
+    btn.disabled = true;
+    btn.textContent = 'Creando...';
+
+    const payload = {
+      folder: document.getElementById('createFolder').value,
+      id: document.getElementById('createId').value,
+      model_file: document.getElementById('createModelFile').value,
+      ctx: parseInt(document.getElementById('createCtx').value),
+      temp: parseFloat(document.getElementById('createTemp').value),
+      badge: document.getElementById('createBadge').value,
+      badge_color: document.getElementById('createBadgeColor').value,
+      desc: document.getElementById('createDesc').value,
+    };
+
+    fetch('/api/model/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(res => {
+      btn.disabled = false;
+      btn.textContent = 'Crear Perfil';
+      if (res.success) {
+        closeCreateModal();
+        showToast('✓ Perfil creado correctamente');
+        setTimeout(() => location.reload(), 900);
+      } else {
+        showToast('Error: ' + res.message);
+      }
+    })
+    .catch(() => {
+      btn.disabled = false;
+      btn.textContent = 'Crear Perfil';
+      showToast('Error de red al crear');
     });
   }
 

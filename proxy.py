@@ -26,45 +26,21 @@ from config import (
     PROXY_PORT,
     BACKEND_HOST,
     BACKEND_PORT,
-    IDLE_TIMEOUT_SECONDS,
     MODELS,
     DEFAULT_MODEL,
     reload_models,
+    load_settings,
+    save_settings,
+    is_lan_allowed,
+    get_local_ip,
+    get_idle_timeout_minutes,
+    set_idle_timeout,
+    get_model_details,
+    save_model_profile,
+    create_model_profile,
+    get_available_folders,
 )
 from manager import manager
-
-# Configuración persistente (settings.json)
-SETTINGS_FILE = os.path.join(BASE_DIR, "settings.json")
-
-def load_settings():
-    if os.path.exists(SETTINGS_FILE):
-        try:
-            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {"lan_access": False}
-
-def save_settings(data):
-    try:
-        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-    except Exception:
-        pass
-
-def is_lan_allowed():
-    return load_settings().get("lan_access", False)
-
-def get_local_ip():
-    try:
-        import socket
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
-    except Exception:
-        return "127.0.0.1"
 
 
 # Rutas que representan prompts reales (solo estas deben despertar la GPU automáticamente)
@@ -170,6 +146,28 @@ def render_dashboard():
     else:
         action_buttons = '<div class="status-indicator idle"><span class="dot-ping"></span> EN REPOSO (0 MB VRAM)</div>'
 
+    # Selector dinámico de watchdog timeout
+    current_timeout = get_idle_timeout_minutes()
+    timeout_options = [
+        (10, "10 min (Recomendado)"),
+        (30, "30 min"),
+        (60, "60 min"),
+        (0, "Nunca / OFF"),
+    ]
+    opts_html = []
+    for val, lbl in timeout_options:
+        sel = "selected" if val == current_timeout else ""
+        opts_html.append(f'<option value="{val}" {sel}>{lbl}</option>')
+
+    timeout_selector_html = f'''
+    <div class="timeout-wrap" title="Auto-apagado del servidor llama.cpp por inactividad">
+      <span class="timeout-icon">⏱</span>
+      <select id="timeoutSelect" class="select-timeout" onchange="changeIdleTimeout(this.value)">
+        {''.join(opts_html)}
+      </select>
+    </div>
+    '''
+
     # Agrupar modelos por familia dinámicamente
     families = {}
     for m_id, cfg in MODELS.items():
@@ -181,6 +179,7 @@ def render_dashboard():
     sections_html = []
     for fam_name, models_in_fam in families.items():
         cards_html = []
+        fam_folder = models_in_fam[0][1].get("_folder_name", "") if models_in_fam else ""
         for m_id, cfg in models_in_fam:
             badge_color = cfg.get("badge_color", "#38bdf8")
             badge_text = cfg.get("badge", f"{cfg['ctx']} tokens")
@@ -196,16 +195,27 @@ def render_dashboard():
                 </div>
                 <p>{cfg['desc']}</p>
               </div>
-              <form method="POST" action="/load" style="margin-top:auto;">
-                <input type="hidden" name="model" value="{m_id}">
-                <button type="submit" class="btn" style="{btn_bg}">{btn_text}</button>
-              </form>
+              <div class="card-bottom">
+                <form method="POST" action="/load" style="margin:0; flex:1;">
+                  <input type="hidden" name="model" value="{m_id}">
+                  <button type="submit" class="btn" style="{btn_bg}">{btn_text}</button>
+                </form>
+                <button type="button" class="btn-config" onclick="openEditModal('{m_id}')" title="Configurar parámetros de {m_id}">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                  </svg>
+                </button>
+              </div>
             </div>
             """)
 
         sections_html.append(f"""
         <div class="family-section">
-          <h2 class="family-title">{fam_name}</h2>
+          <div class="family-header">
+            <h2 class="family-title">{fam_name}</h2>
+            <button type="button" class="btn-new-profile" onclick="openCreateModal('{fam_folder}', '{fam_name}')" title="Crear nuevo perfil para {fam_name}">+ Nuevo Perfil</button>
+          </div>
           <div class="grid">
             {''.join(cards_html)}
           </div>
@@ -229,6 +239,7 @@ def render_dashboard():
 
     html = html.replace("{{STATUS_LABEL}}", status_label)
     html = html.replace("{{LAN_TOGGLE}}", lan_toggle_html)
+    html = html.replace("{{TIMEOUT_SELECTOR}}", timeout_selector_html)
     html = html.replace("{{ACTION_BUTTONS}}", action_buttons)
     html = html.replace("{{MODEL_SECTIONS}}", "\n".join(sections_html))
     html = html.replace("{{PROXY_PORT}}", str(PROXY_PORT))
@@ -405,6 +416,37 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self.wfile.write(res_body)
             return
 
+        # 6. API: Detalles de un modelo para el editor web
+        if self.path.startswith("/api/model/details"):
+            import urllib.parse
+            parsed = urllib.parse.urlparse(self.path)
+            q = urllib.parse.parse_qs(parsed.query)
+            m_id = q.get("model", [None])[0]
+            details = get_model_details(m_id) if m_id else None
+            if details:
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self._send_cors()
+                self.end_headers()
+                self.wfile.write(json.dumps(details).encode("utf-8"))
+            else:
+                self.send_response(404)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self._send_cors()
+                self.end_headers()
+                self.wfile.write(b'{"error": "Modelo no encontrado"}')
+            return
+
+        # 7. API: Carpetas disponibles para crear nuevo perfil
+        if self.path == "/api/model/folders":
+            folders = get_available_folders()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self._send_cors()
+            self.end_headers()
+            self.wfile.write(json.dumps(folders).encode("utf-8"))
+            return
+
         # Si el modelo está corriendo y piden un recurso estático (slots, metrics, etc.), reenviar al backend
         if manager.current_model is not None:
             self._proxy_request("GET")
@@ -464,6 +506,79 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
         content_length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(content_length) if content_length > 0 else b"{}"
+
+        # API: Actualizar timeout del watchdog
+        if self.path == "/api/settings/timeout":
+            if not self._is_loopback_client():
+                self.send_response(403)
+                self.end_headers()
+                return
+            try:
+                data = json.loads(body.decode("utf-8")) if body else {}
+                mins = int(data.get("timeout", 10))
+                set_idle_timeout(mins)
+                print(f"\n[Config] Watchdog timeout actualizado a: {mins} minutos.")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self._send_cors()
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": True, "timeout": mins}).encode("utf-8"))
+            except Exception as e:
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self._send_cors()
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+            return
+
+        # API: Guardar perfil de modelo modificado
+        if self.path == "/api/model/save":
+            if not self._is_loopback_client():
+                self.send_response(403)
+                self.end_headers()
+                return
+            try:
+                data = json.loads(body.decode("utf-8")) if body else {}
+                model_id = data.get("id")
+                ok, msg = save_model_profile(model_id, data)
+                print(f"\n[Config] Guardar perfil '{model_id}': {'OK' if ok else msg}")
+                self.send_response(200 if ok else 400)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self._send_cors()
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": ok, "message": msg}).encode("utf-8"))
+            except Exception as e:
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self._send_cors()
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+            return
+
+        # API: Crear nuevo perfil de modelo
+        if self.path == "/api/model/create":
+            if not self._is_loopback_client():
+                self.send_response(403)
+                self.end_headers()
+                return
+            try:
+                data = json.loads(body.decode("utf-8")) if body else {}
+                folder_name = data.get("folder")
+                profile_id = data.get("id")
+                ok, msg = create_model_profile(folder_name, profile_id, data)
+                print(f"\n[Config] Crear perfil '{profile_id}' en '{folder_name}': {'OK' if ok else msg}")
+                self.send_response(200 if ok else 400)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self._send_cors()
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": ok, "message": msg}).encode("utf-8"))
+            except Exception as e:
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self._send_cors()
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+            return
 
         # 3. FILTRO ESTRICTO DE INFERENCIA
         if self.path in INFERENCE_PATHS:

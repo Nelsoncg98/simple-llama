@@ -17,7 +17,7 @@ from config import (
     LLAMA_SERVER_BIN,
     BACKEND_HOST,
     BACKEND_PORT,
-    IDLE_TIMEOUT_SECONDS,
+    get_idle_timeout_seconds,
     MODELS,
     DEFAULT_MODEL,
     reload_models,
@@ -293,11 +293,13 @@ class ModelManager:
                             self.last_activity = time.time()
                             continue
 
-                        idle_time = time.time() - self.last_activity
-                        if idle_time > IDLE_TIMEOUT_SECONDS:
-                            mins = int(idle_time // 60)
-                            print(f"\n[Watchdog] [-] {mins} min de inactividad detectados. Auto-apagando para liberar GPU...")
-                            self.stop_server()
+                        timeout_sec = get_idle_timeout_seconds()
+                        if timeout_sec > 0:
+                            idle_time = time.time() - self.last_activity
+                            if idle_time > timeout_sec:
+                                mins = int(idle_time // 60)
+                                print(f"\n[Watchdog] [-] {mins} min de inactividad detectados. Auto-apagando para liberar GPU...")
+                                self.stop_server()
             except Exception:
                 pass
 

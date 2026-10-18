@@ -113,14 +113,47 @@ def load_models():
 
         config_path = os.path.join(entry.path, "config.json")
         if not os.path.exists(config_path):
-            continue
-
-        try:
-            with open(config_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception as e:
-            print(f"[Config] [!] Advertencia: Error leyendo {config_path}: {e}")
-            continue
+            # Auto-descubrimiento Plug & Play: Si el usuario copia un .gguf a una carpeta nueva,
+            # Simple Llama auto-genera un perfil base sin necesidad de escribir JSON manualmente.
+            try:
+                ggufs = [f for f in os.listdir(entry.path) if f.lower().endswith(".gguf")]
+                if not ggufs:
+                    continue
+                non_proj = [f for f in ggufs if not any(x in f.lower() for x in ["mmproj", "mtp", "draft"])]
+                main_model = non_proj[0] if non_proj else ggufs[0]
+                clean_id = entry.name.lower().replace(" ", "-") + "-default"
+                init_data = {
+                    "family": entry.name.capitalize(),
+                    "profiles": {
+                        clean_id: {
+                            "model_path": main_model,
+                            "ctx": DEFAULT_CTX,
+                            "desc": f"{entry.name.capitalize()} (Detectado automáticamente, {DEFAULT_CTX} tokens)",
+                            "badge": f"{DEFAULT_CTX // 1024}k Tokens",
+                            "badge_color": "#38bdf8",
+                            "temp": 0.70,
+                            "top_p": 0.95,
+                            "top_k": 40,
+                            "cache_type_k": "q8_0",
+                            "cache_type_v": "q8_0",
+                            "fa": "on"
+                        }
+                    }
+                }
+                with open(config_path, "w", encoding="utf-8") as f:
+                    json.dump(init_data, f, indent=2, ensure_ascii=False)
+                data = init_data
+                print(f"[Config] [+] Nuevo modelo detectado en 'models/{entry.name}'. Configuración inicial auto-creada.")
+            except Exception as e:
+                print(f"[Config] [!] No se pudo auto-inicializar '{entry.name}': {e}")
+                continue
+        else:
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception as e:
+                print(f"[Config] [!] Advertencia: Error leyendo {config_path}: {e}")
+                continue
 
         default_family = data.get("family", entry.name.capitalize())
 

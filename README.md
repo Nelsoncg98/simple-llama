@@ -239,3 +239,12 @@ Ejecuta el script incluido **`sync_opencode.py`**: escaneará los modelos activo
 ## 📄 Licencia
 
 Distribuido bajo la Licencia **MIT**. Consulta el archivo `LICENSE` para más información.
+
+---
+
+## ⚖️ Avisos Legales y Descargo de Responsabilidad (Disclaimer)
+
+* **Marcas Registradas:** *Simple Llama* es un proyecto independiente de código abierto y no está afiliado, respaldado ni patrocinado por Meta Platforms, Inc., Google LLC, ni por el proyecto oficial `llama.cpp` de Georgi Gerganov. Todos los nombres de marcas, modelos o productos referenciados pertenecen a sus respectivos titulares.
+* **Licenciamiento de Modelos:** Este software no distribuye ni almacena pesos de modelos (`.gguf`). Es responsabilidad exclusiva del usuario verificar y cumplir las condiciones de uso, licencias y restricciones de cada modelo que decida descargar y ejecutar localmente (tales como *Gemma Terms of Use*, *Meta Llama Community License*, *Apache 2.0*, entre otras).
+* **Contenido Generado por IA:** Las respuestas entregadas por los modelos en tiempo de ejecución son generadas sintéticamente por inteligencia artificial. El desarrollador no asume responsabilidad alguna por las respuestas, alucinaciones, inexactitudes o decisiones derivadas del uso de los modelos orquestados por esta herramienta.
+* **Transparencia en Desarrollo Asistido por IA:** En concordancia con los estándares contemporáneos de desarrollo de software, se declara que aspectos del diseño de arquitectura, optimización de código y documentación técnica de este proyecto han contado con la colaboración de herramientas de Inteligencia Artificial generativa, bajo la auditoría, dirección y validación rigurosa del autor.

@@ -30,7 +30,10 @@
    - **Editar perfiles en caliente:** Renombrado seguro de ID con sanitización automática, selector de presets de contexto (`4k` a `256k`), afinación de `min_p`, `reasoning_budget` (tokens de pensamiento), KV Cache K/V y Flash Attention.
    - **Eliminación segura:** Modal de confirmación con doble verificación que retira el perfil sin tocar tus archivos de modelo en disco.
    - **Hot-Reload:** Si editas los parámetros de un modelo que ya está corriendo en GPU, el orquestador lo reinicia automáticamente con la nueva configuración.
-7. **Control de Red Local (Wi-Fi / LAN) y Multi-dispositivo:** Activa o desactiva con un solo clic el acceso desde tablets, móviles u otras PCs. Ajusta dinámicamente los endpoints a la IP real del host y ofrece compatibilidad con portapapeles móvil en entornos HTTP.
+7. **Arquitectura de Seguridad Dual (Modo Hogar vs. Modo Público con PIN):**
+   - **Modo Hogar:** Arranque seguro con LAN apagada por defecto. Encendido en un clic para acceso de dispositivos del hogar y **botón de corte remoto ("Kill Switch")** desde el celular. *Network Watcher* apaga la red automáticamente ante cambios de Wi-Fi o activación de VPNs.
+   - **Modo Público:** Comparte la IA con amigos o compañeros permitiéndoles chatear o usar la API, con límites de tokens y sin permitirles conmutar modelos ni tocar la configuración del servidor, la cual queda protegida mediante PIN de administrador.
+8. **Persistencia Atómica a Prueba de Fallos:** Catálogo protegido contra cortes de luz mediante escritura atómica (`atomic_write_json`) y respaldos automáticos `.bak` en sincronizaciones.
 
 ---
 
@@ -49,11 +52,14 @@ llamacpp/
 ├── *.dll                          # Bibliotecas CUDA / OpenMP requeridas
 └── orchestrator/                  # Repositorio Simple Llama
     ├── proxy.py                   # Servidor HTTP multihilo y proxy OpenAI
+    ├── security.py                # Control de acceso LAN, modo dual, firewall y sesiones
     ├── manager.py                 # Gestor de procesos GPU, watchdog y hot-swap
-    ├── config.py                  # Motor central de configuración y catálogo
+    ├── config.py                  # Motor central de configuración, catálogo y guardado atómico
     ├── sync_opencode.py           # Sincronizador para OpenCode y agentes
     ├── templates/
-    │   └── dashboard.html         # Interfaz web de administración
+    │   ├── dashboard.html         # Panel principal de administración web
+    │   ├── public.html            # Portal de invitado y autenticación con PIN
+    │   └── lan_disabled.html      # Pantalla segura de desconexión remota
     ├── models/                    # Directorio de modelos locales
     │   ├── config.json            # Configuración única de todos los perfiles
     │   ├── modelo.gguf            # Pesos del modelo principal
@@ -154,14 +160,37 @@ El catálogo de modelos se gestiona en un archivo JSON estructurado por identifi
 
 ---
 
-## 🌐 Control de Red Local (Wi-Fi / LAN)
+## 🌐 Seguridad y Control de Red Local (Dual Mode)
 
-Simple Llama incluye un cortafuegos a nivel de aplicación conmutador de privacidad integrado en el panel web:
+Simple Llama incorpora una arquitectura de seguridad por capas con **cero configuración de firewall manual** y protección contra filtraciones:
 
-* **Modo OFF (Por defecto):** Solo la propia PC (`localhost` / `127.0.0.1`) puede acceder al dashboard y a la API. Peticiones de IPs externas reciben `403 Forbidden`.
-* **Modo ON:** Autoriza conexiones de dispositivos en tu red local (tablets, teléfonos, laptops secundarias). El panel ajusta dinámicamente los endpoints a tu IP LAN real (ej. `http://192.168.18.78:11435`).
-* **Persistencia:** La preferencia se almacena en `settings.json` y se conserva tras reiniciar el equipo o el servidor.
-* **Control total desde LAN:** Al habilitar la red local, puedes administrar, crear, editar y eliminar perfiles directamente desde tu tablet o dispositivo móvil.
+### 1. Modo Hogar (Arranque por Defecto)
+* **Aislado al iniciar:** El servidor arranca con la red local en **OFF**. Solo la propia PC (`localhost` / `127.0.0.1`) tiene acceso.
+* **Activación en un clic:** Al pulsar `Red Local: OFF` en el panel, se autoriza el tráfico en tu Wi-Fi/LAN para teléfonos, tablets u otras PCs de tu hogar, sin requerir contraseñas engorrosas en tu red privada.
+* **Botón de Corte Remoto ("Kill Switch"):** Puedes pulsar "Desactivar y Aislar" directamente desde la pantalla de tu celular o tablet. El servidor corta la conexión remota al instante sin descargar el modelo de la GPU.
+* **Network Watcher:** Si tu laptop cambia de red (ej. te conectas al Wi-Fi de una cafetería o activas una VPN), el servidor apaga automáticamente la LAN para proteger tu equipo.
+* **Privacidad efímera:** El estado de la red nunca se escribe en disco; cada reinicio vuelve a un estado completamente seguro y cerrado.
+
+### 2. Modo Público con PIN (Para compartir con amigos o compañeros)
+Si deseas compartir tu potencia de IA con otras personas en tu red local (oficina, universidad, cowork) sin permitirles alterar tus modelos:
+
+```powershell
+.\iniciar-servidor.bat --lan --admin-pin MI_PIN_SECRETO
+```
+
+* **Portal de Invitado (`templates/public.html`):** Los dispositivos externos ven una página minimalista y oscura con la URL de la API (`/v1`), el modelo en uso y un botón directo **"Abrir Chat Web ↗"** para chatear en el navegador sin apps adicionales.
+* **Blindaje de GPU contra Conmutación:** Los invitados **no pueden cambiar de modelo ni vaciar la VRAM**. Si un cliente externo envía un prompt pidiendo otro modelo, el orquestador lo redirige silenciosamente al modelo fijado por el administrador.
+* **Tope de Recursos:** Las peticiones de invitados están limitadas automáticamente a 2048 tokens por respuesta y un máximo de 2 consultas simultáneas (personalizable con `--max-tokens` y `--max-concurrent`).
+* **Desbloqueo Remoto con PIN:** Solo el administrador puede ingresar su PIN en el portal web para desbloquear el panel de control completo desde su teléfono o tablet.
+
+### 3. Arquitectura de Puertos Desacoplada
+* **Puerto `11435` (Orquestador & API):** Sirve el panel de control, la API OpenAI (`/v1`), el portal público y la gestión de modelos.
+* **Puerto `11436` (Pasarela Llama UI):** Pasarela de acceso seguro que conecta con la interfaz nativa de `llama-server`.
+* **Puerto `11437` (Backend Llama.cpp):** Escucha exclusivamente en `127.0.0.1` (loopback interno), inaccesible desde el exterior para máxima seguridad.
+
+### 4. Persistencia Atómica a Prueba de Cortes
+* Todas las modificaciones a `models/config.json` se escriben de forma **atómica** (`atomic_write_json` mediante archivos temporales y reemplazo atómico del SO). Si tu PC sufre un corte de energía mientras editas un perfil, tu catálogo nunca quedará corrupto.
+* Las sincronizaciones con herramientas de agentes generan respaldos `.bak` automáticos.
 
 ---
 

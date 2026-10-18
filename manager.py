@@ -4,6 +4,7 @@ Simple Llama
 """
 
 import time
+import json
 import subprocess
 import threading
 import urllib.request
@@ -19,9 +20,12 @@ from config import (
     BACKEND_PORT,
     get_idle_timeout_seconds,
     MODELS,
-    DEFAULT_MODEL,
+    get_default_model,
     reload_models,
 )
+
+# Tiempo máximo (s) de espera a que llama-server responda /health (modelos grandes en disco lento)
+STARTUP_TIMEOUT_SECONDS = 180
 
 
 class ModelManager:
@@ -35,6 +39,7 @@ class ModelManager:
         self.is_busy = False
         self._last_slots_state = None
         self.last_error = None
+        self._server_log_file = None
 
         # Iniciar hilo de vigilancia (Watchdog para auto-apagado)
         self.watchdog_thread = threading.Thread(target=self._watchdog_loop, daemon=True)
@@ -45,6 +50,10 @@ class ModelManager:
         err = self.last_error
         self.last_error = None
         return err
+
+    def peek_last_error(self):
+        """Retorna el último error reportado sin limpiarlo."""
+        return self.last_error
 
     def start_inference(self):
         """Bloquea el watchdog mientras se genera texto"""
@@ -100,6 +109,14 @@ class ModelManager:
                         pass
                 print("[Manager] [OK] Servidor detenido. GPU y RAM liberadas (0 MB VRAM).")
 
+            log_file = self._server_log_file
+            self._server_log_file = None
+            if log_file:
+                try:
+                    log_file.close()
+                except Exception:
+                    pass
+
     def ensure_model(self, model_name, force_reload=False):
         """
         Conmuta o levanta el modelo solicitado en GPU de forma segura.
@@ -109,20 +126,27 @@ class ModelManager:
         with self.lock:
             self.touch()
 
-            # Normalizar modelo solicitado
+            # Normalizar modelo solicitado (recarga barata: solo si cambió config.json o models/)
+            reload_models()
             target = model_name
             if target not in MODELS:
-                reload_models()
-            if target not in MODELS:
-                target = DEFAULT_MODEL
+                fallback = get_default_model()
+                if fallback is None:
+                    self.last_error = "No hay ningún perfil de modelo registrado. Crea uno desde el panel (Nuevo Perfil)."
+                    print(f"[Manager] [!] ERROR: {self.last_error}")
+                    return False
+                if model_name:
+                    print(f"[Manager] [i] Modelo '{model_name}' no existe; usando el modelo por defecto '{fallback}'.")
+                target = fallback
 
             new_config = MODELS.get(target, {})
             config_changed = False
             if self.current_params and self.current_model == target:
                 keys_to_compare = [
                     "model_path", "ctx", "cache_type_k", "cache_type_v",
-                    "vision", "projector_path", "draft_path", "spec_type",
-                    "fa", "temp", "top_p", "top_k", "repeat_penalty", "presence_penalty"
+                    "vision", "projector_path", "draft_path", "spec_type", "spec_draft_n_max",
+                    "fa", "temp", "top_p", "top_k", "min_p", "repeat_penalty", "presence_penalty",
+                    "reasoning_budget", "chat_template"
                 ]
                 for k in keys_to_compare:
                     if self.current_params.get(k) != new_config.get(k):
@@ -186,7 +210,7 @@ class ModelManager:
                 "--cache-type-v", str(cache_type_v),
                 "--alias", target,
                 "--port", str(BACKEND_PORT),
-                "--host", "0.0.0.0",
+                "--host", BACKEND_HOST,
                 "--log-verbosity", "2",
             ]
 
@@ -247,7 +271,7 @@ class ModelManager:
             # Esperar a que el servidor esté listo respondiendo en /health
             start_wait = time.time()
             ready = False
-            while time.time() - start_wait < 60:
+            while time.time() - start_wait < STARTUP_TIMEOUT_SECONDS:
                 # Si el proceso murió prematuramente, reportar el error exacto de server.log
                 if self.process.poll() is not None:
                     break
@@ -288,50 +312,61 @@ class ModelManager:
             if self.process and self.process.poll() is None:
                 self._trim_memory(self.process.pid)
 
+    def _poll_backend_busy(self):
+        """Consulta /slots del backend (sin tomar el lock). Retorna True si hay generación en curso o un prompt nuevo."""
+        is_backend_busy = False
+        try:
+            slots_req = urllib.request.Request(f"http://{BACKEND_HOST}:{BACKEND_PORT}/slots")
+            with urllib.request.urlopen(slots_req, timeout=1) as slots_res:
+                if slots_res.status == 200:
+                    slots_json = json.loads(slots_res.read().decode("utf-8"))
+                    current_state = []
+                    for slot in slots_json:
+                        if slot.get("is_processing", False):
+                            is_backend_busy = True
+                        current_state.append((slot.get("id_task", -1), slot.get("n_past", -1)))
+
+                    # Si está procesando o hubo un prompt nuevo en llama-ui, renovar actividad
+                    if is_backend_busy or (self._last_slots_state is not None and current_state != self._last_slots_state):
+                        self.last_activity = time.time()
+                    self._last_slots_state = current_state
+        except (urllib.error.URLError, OSError, ValueError):
+            # Backend aún arrancando, ocupado o sin endpoint /slots: no es un error del watchdog
+            pass
+        return is_backend_busy
+
     def _watchdog_loop(self):
         """Vigila la inactividad y apaga el proceso tras 10 minutos sin uso"""
         while self.running:
             time.sleep(15)
             try:
                 with self.lock:
-                    if self.process and self.process.poll() is None:
+                    proc = self.process
+                    alive = bool(proc and proc.poll() is None)
+                    if alive:
                         # Mantener la RAM física podada continuamente en ~40 MB
-                        self._trim_memory(self.process.pid)
+                        self._trim_memory(proc.pid)
 
-                        is_backend_busy = False
-                        # Detectar actividad directa en el Chat Web de llama.cpp (8081 / llama-ui)
-                        try:
-                            slots_req = urllib.request.Request(f"http://{BACKEND_HOST}:{BACKEND_PORT}/slots")
-                            with urllib.request.urlopen(slots_req, timeout=1) as slots_res:
-                                if slots_res.status == 200:
-                                    slots_json = json.loads(slots_res.read().decode("utf-8"))
-                                    current_state = []
-                                    for slot in slots_json:
-                                        if slot.get("is_processing", False):
-                                            is_backend_busy = True
-                                        current_state.append((slot.get("id_task", -1), slot.get("n_past", -1)))
+                if not alive:
+                    continue
 
-                                    # Si está procesando o hubo un prompt nuevo en llama-ui, renovar actividad
-                                    if is_backend_busy or (self._last_slots_state is not None and current_state != self._last_slots_state):
-                                        self.last_activity = time.time()
-                                    self._last_slots_state = current_state
-                        except Exception:
-                            pass
+                # Detectar actividad directa en el Chat Web de llama.cpp (llama-ui) fuera del lock
+                is_backend_busy = self._poll_backend_busy()
 
-                        # Si el proxy está generando o el backend está ocupado, renovar y JAMÁS apagar
-                        if self.is_busy or is_backend_busy:
-                            self.last_activity = time.time()
-                            continue
+                # Si el proxy está generando o el backend está ocupado, renovar y JAMÁS apagar
+                if self.is_busy or is_backend_busy:
+                    self.last_activity = time.time()
+                    continue
 
-                        timeout_sec = get_idle_timeout_seconds()
-                        if timeout_sec > 0:
-                            idle_time = time.time() - self.last_activity
-                            if idle_time > timeout_sec:
-                                mins = int(idle_time // 60)
-                                print(f"\n[Watchdog] [-] {mins} min de inactividad detectados. Auto-apagando para liberar GPU...")
-                                self.stop_server()
-            except Exception:
-                pass
+                timeout_sec = get_idle_timeout_seconds()
+                if timeout_sec > 0:
+                    idle_time = time.time() - self.last_activity
+                    if idle_time > timeout_sec:
+                        mins = int(idle_time // 60)
+                        print(f"\n[Watchdog] [-] {mins} min de inactividad detectados. Auto-apagando para liberar GPU...")
+                        self.stop_server()
+            except Exception as e:
+                print(f"[Watchdog] [!] Error inesperado: {e!r}")
 
 
 # Instancia única del gestor

@@ -18,7 +18,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
-from config import load_models, PROXY_PORT
+from config import load_models, PROXY_PORT, atomic_write_json
 
 
 def strip_jsonc_comments(text: str) -> str:
@@ -130,8 +130,16 @@ def sync_opencode(models: dict) -> bool:
     }
 
     try:
-        with open(config_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+        # Respaldar archivo original antes de escribir si existe
+        if os.path.exists(config_path):
+            bak_path = f"{config_path}.bak"
+            try:
+                with open(config_path, "r", encoding="utf-8") as f_orig:
+                    with open(bak_path, "w", encoding="utf-8") as f_bak:
+                        f_bak.write(f_orig.read())
+            except Exception:
+                pass
+        atomic_write_json(config_path, data, indent=2, ensure_ascii=False)
         print(f"[+] OpenCode: Sincronizado ({len(opencode_models)} modelos) en {config_path}")
         return True
     except Exception as e:
@@ -200,8 +208,15 @@ def sync_pi(models: dict) -> bool:
     }
 
     try:
-        with open(models_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+        if os.path.exists(models_path):
+            bak_path = f"{models_path}.bak"
+            try:
+                with open(models_path, "r", encoding="utf-8") as f_orig:
+                    with open(bak_path, "w", encoding="utf-8") as f_bak:
+                        f_bak.write(f_orig.read())
+            except Exception:
+                pass
+        atomic_write_json(models_path, data, indent=2, ensure_ascii=False)
         print(f"[+] Pi Agent: Sincronizado ({len(pi_models)} modelos) en {models_path}")
         return True
     except Exception as e:

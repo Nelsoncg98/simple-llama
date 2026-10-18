@@ -1276,9 +1276,28 @@
   </div>
 </div>
 
+<!-- Modal: Confirmar Cambio de Estado de Red Local (Wi-Fi/LAN) -->
+<div id="lanModal" class="modal-backdrop">
+  <div class="modal-box" style="max-width: 480px;">
+    <div class="modal-header">
+      <h3 class="modal-title" id="lanModalTitle">📡 Red Local (Wi-Fi/LAN)</h3>
+      <button type="button" class="modal-close" onclick="closeLanModal()">&times;</button>
+    </div>
+    <div style="padding: 12px 0 16px 0;">
+      <p id="lanModalDesc" style="font-size: 13.5px; color: var(--text-primary); margin: 0 0 10px 0; line-height: 1.5;"></p>
+      <div id="lanModalWarning" style="display:none; font-size: 12.5px; background: rgba(239, 68, 68, 0.12); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.28); border-radius: 8px; padding: 10px 12px; margin-top: 10px; line-height: 1.45;"></div>
+    </div>
+    <div class="modal-actions" style="margin-top: 10px;">
+      <button type="button" class="btn-cancel" onclick="closeLanModal()">Cancelar</button>
+      <button type="button" id="btnConfirmLan" class="btn-save" onclick="confirmLanToggle()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast">✓ URL de la API copiada al portapapeles</div>
 
 <script>
+  const LAN_STATE = {{LAN_STATE_JSON}};
   let cachedCatalog = null;
 
   function showToast(msg) {
@@ -1785,11 +1804,128 @@
     });
   }
 
+  let pendingLanAction = null;
+  let forceLanRequired = false;
+
+  function openLanModal() {
+    const isCurrentlyOn = Boolean(LAN_STATE && LAN_STATE.lan);
+    const modal = document.getElementById('lanModal');
+    const title = document.getElementById('lanModalTitle');
+    const desc = document.getElementById('lanModalDesc');
+    const warning = document.getElementById('lanModalWarning');
+    const btn = document.getElementById('btnConfirmLan');
+
+    warning.style.display = 'none';
+    warning.textContent = '';
+    forceLanRequired = false;
+
+    if (!isCurrentlyOn) {
+      pendingLanAction = true;
+      title.innerHTML = '📡 Activar Red Local (Wi-Fi / LAN)';
+      const hostIp = (LAN_STATE && LAN_STATE.ip) || window.location.hostname;
+      const port = (LAN_STATE && LAN_STATE.port) || '11435';
+      desc.innerHTML = `¿Deseas permitir el acceso desde otros dispositivos?<br><br>
+        Cualquier persona en tu misma red Wi-Fi o red local podrá conectarse a tus modelos y al panel usando la URL:<br>
+        <code style="color:var(--accent); font-weight:600;">http://${hostIp}:${port}</code>`;
+      btn.textContent = 'Activar Red Local';
+      btn.style.background = '#2563eb';
+    } else {
+      pendingLanAction = false;
+      title.innerHTML = '🔒 Desactivar Red Local';
+      let msg = '¿Deseas cortar el acceso a la red local?<br><br>El servidor volverá a modo <strong>solo localhost (esta PC)</strong>.';
+      if (LAN_STATE && LAN_STATE.role && LAN_STATE.role !== 'local') {
+        msg += '<br><br><span style="color:#f87171; font-weight:600;">⚠️ Atención: Estás conectado remotamente (celular/tablet). Perderás el acceso de inmediato a este panel hasta que lo reactives en la PC.</span>';
+      }
+      desc.innerHTML = msg;
+      btn.textContent = 'Desactivar y Aislar';
+      btn.style.background = '#dc2626';
+    }
+
+    modal.classList.add('open');
+  }
+
+  function closeLanModal() {
+    const modal = document.getElementById('lanModal');
+    if (modal) modal.classList.remove('open');
+    pendingLanAction = null;
+    forceLanRequired = false;
+  }
+
+  function confirmLanToggle() {
+    if (pendingLanAction === null) return;
+    const btn = document.getElementById('btnConfirmLan');
+    const warning = document.getElementById('lanModalWarning');
+    btn.disabled = true;
+    btn.textContent = 'Aplicando...';
+
+    const payload = { enable: pendingLanAction, force: forceLanRequired };
+
+    fetch('/api/lan/toggle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    .then(r => r.json().then(data => ({ status: r.status, data })))
+    .then(({ status, data }) => {
+      btn.disabled = false;
+      if (status === 409 && data.requiresForce) {
+        forceLanRequired = true;
+        warning.innerHTML = `⚠️ <strong>Red Pública Detectada</strong>: ${data.message || 'Windows reporta que esta red es pública. Si estás en una cafetería o red compartida ajena, cualquiera podría acceder.'}`;
+        warning.style.display = 'block';
+        btn.textContent = 'Forzar Activación de Todas Formas';
+        btn.style.background = '#dc2626';
+        return;
+      }
+
+      if (data.success) {
+        if (LAN_STATE) LAN_STATE.lan = data.lan;
+        showToast(data.message || 'Estado de red actualizado');
+        closeLanModal();
+        setTimeout(() => location.reload(), 600);
+      } else {
+        showToast('Error: ' + (data.message || 'No se pudo cambiar'));
+        btn.textContent = 'Reintentar';
+      }
+    })
+    .catch(() => {
+      btn.disabled = false;
+      btn.textContent = 'Reintentar';
+      showToast('Error de conexión al cambiar estado de red');
+    });
+  }
+
+  let lastNoticeId = (LAN_STATE && LAN_STATE.lastNotice) || 0;
+  function pollNotices() {
+    fetch('/api/lan/status?since=' + lastNoticeId)
+      .then(r => r.json())
+      .then(d => {
+        if (!d) return;
+        if (typeof d.lan === 'boolean' && LAN_STATE && LAN_STATE.lan !== d.lan) {
+          LAN_STATE.lan = d.lan;
+          setTimeout(() => location.reload(), 1200);
+        }
+        if (d.notices && d.notices.length > 0) {
+          d.notices.forEach(n => {
+            showToast('⚠️ ' + n.message);
+          });
+        }
+        if (d.lastNotice) {
+          lastNoticeId = d.lastNotice;
+        }
+      })
+      .catch(() => {});
+  }
+
+  function startNoticePolling() {
+    setInterval(pollNotices, 8000);
+  }
+
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       closeEditModal();
       closeCreateModal();
       closeDeleteModal();
+      closeLanModal();
     }
   });
 
@@ -1799,6 +1935,8 @@
     setupModalBackdrop('editModal', closeEditModal);
     setupModalBackdrop('createModal', closeCreateModal);
     setupModalBackdrop('deleteModal', closeDeleteModal);
+    setupModalBackdrop('lanModal', closeLanModal);
+    startNoticePolling();
   });
 </script>
 </body>

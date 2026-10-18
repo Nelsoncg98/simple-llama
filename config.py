@@ -5,6 +5,7 @@ Descubrimiento modular automático mediante carpetas en models/
 
 import os
 import json
+import threading
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -23,35 +24,52 @@ MODELS_DIR = os.path.join(BASE_DIR, "models")
 PROXY_HOST = "0.0.0.0"
 PROXY_PORT = 11435
 BACKEND_HOST = "127.0.0.1"
-BACKEND_PORT = 11436
+# Puerto donde el usuario abre la UI nativa de llama.cpp (lo atiende el proxy con control de acceso)
+UI_PORT = 11436
+# Puerto INTERNO de llama-server (solo 127.0.0.1, nunca expuesto directamente)
+BACKEND_PORT = 11437
 
 # Configuración persistente (settings.json)
 SETTINGS_FILE = os.path.join(BASE_DIR, "settings.json")
 
+
+def atomic_write_json(path, data, **dump_kwargs):
+    """Escribe JSON de forma atómica (archivo temporal + os.replace) para evitar corrupción por cortes."""
+    tmp_path = f"{path}.tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, **dump_kwargs)
+        f.flush()
+        try:
+            os.fsync(f.fileno())
+        except OSError:
+            pass
+    os.replace(tmp_path, path)
+
+
 def load_settings():
     """Carga la configuración persistente global."""
-    default_settings = {"lan_access": False, "idle_timeout_minutes": 10}
+    default_settings = {"idle_timeout_minutes": 10}
     if os.path.exists(SETTINGS_FILE):
         try:
             with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 if isinstance(data, dict):
                     default_settings.update(data)
-                    return default_settings
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[Config] [!] Error leyendo settings.json: {e}")
+    # El acceso LAN vive solo en memoria (siempre arranca en OFF); se ignora cualquier valor heredado
+    default_settings.pop("lan_access", None)
     return default_settings
 
 def save_settings(data):
-    """Guarda la configuración persistente global."""
+    """Guarda la configuración persistente global. Retorna True si se guardó correctamente."""
     try:
-        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-    except Exception:
-        pass
-
-def is_lan_allowed():
-    return bool(load_settings().get("lan_access", False))
+        clean = {k: v for k, v in data.items() if k != "lan_access"}
+        atomic_write_json(SETTINGS_FILE, clean, indent=2)
+        return True
+    except Exception as e:
+        print(f"[Config] [!] No se pudo guardar settings.json: {e}")
+        return False
 
 def get_idle_timeout_minutes():
     """Retorna los minutos de inactividad antes de auto-apagar (0 = Desactivado/Nunca)."""
@@ -95,8 +113,7 @@ def ensure_central_config():
     os.makedirs(MODELS_DIR, exist_ok=True)
     if not os.path.exists(CENTRAL_CONFIG_PATH):
         try:
-            with open(CENTRAL_CONFIG_PATH, "w", encoding="utf-8") as f:
-                json.dump({"models": {}}, f, indent=2, ensure_ascii=False)
+            atomic_write_json(CENTRAL_CONFIG_PATH, {"models": {}}, indent=2, ensure_ascii=False)
         except Exception:
             pass
 
@@ -123,7 +140,11 @@ def find_model_file(filename_or_path):
     if os.path.isabs(filename_or_path):
         norm_target = os.path.normpath(filename_or_path)
         norm_models = os.path.normpath(MODELS_DIR)
-        if norm_target.startswith(norm_models) and os.path.exists(norm_target):
+        try:
+            inside = os.path.commonpath([os.path.normcase(norm_target), os.path.normcase(norm_models)]) == os.path.normcase(norm_models)
+        except ValueError:
+            inside = False
+        if inside and os.path.exists(norm_target):
             return norm_target
 
     # Buscar exclusivamente en MODELS_DIR (y sus subcarpetas si las hubiera)
@@ -260,21 +281,60 @@ def load_models():
 
 MODELS = load_models()
 
+_MODELS_LOCK = threading.RLock()
 
-def reload_models():
-    """Recarga los modelos en caliente actualizando el diccionario en memoria."""
-    global DEFAULT_MODEL
-    updated = load_models()
-    MODELS.clear()
-    MODELS.update(updated)
+
+def _config_signature():
+    """Firma barata (mtime/tamaño de config.json + mtime de models/) para detectar cambios en disco."""
+    try:
+        cfg_st = os.stat(CENTRAL_CONFIG_PATH)
+        cfg_sig = (cfg_st.st_mtime_ns, cfg_st.st_size)
+    except OSError:
+        cfg_sig = None
+    try:
+        dir_sig = os.stat(MODELS_DIR).st_mtime_ns
+    except OSError:
+        dir_sig = None
+    return (cfg_sig, dir_sig)
+
+
+_last_signature = _config_signature()
+
+
+def get_default_model():
+    """Retorna el modelo por defecto actual (o None si no hay ningún perfil registrado)."""
     if "gemma12b-edge" in MODELS:
-        DEFAULT_MODEL = "gemma12b-edge"
-    elif MODELS:
-        DEFAULT_MODEL = next(iter(MODELS))
+        return "gemma12b-edge"
+    for key in list(MODELS.keys()):
+        return key
+    return None
+
+
+def reload_models(force=False):
+    """
+    Recarga los modelos en caliente solo si cambió config.json o la carpeta models/.
+    Actualiza el diccionario en sitio (sin pasar por un estado vacío) para que otros hilos no lo vean a medias.
+    """
+    global DEFAULT_MODEL, _last_signature
+    with _MODELS_LOCK:
+        sig = _config_signature()
+        if not force and sig == _last_signature:
+            return MODELS
+        updated = load_models()
+        MODELS.update(updated)
+        for stale in [k for k in list(MODELS.keys()) if k not in updated]:
+            MODELS.pop(stale, None)
+        # Si el orden de los perfiles cambió (renombrado), reconstruir respetando el orden de config.json
+        if list(MODELS.keys()) != list(updated.keys()):
+            ordered = {k: MODELS[k] for k in updated.keys() if k in MODELS}
+            MODELS.clear()
+            MODELS.update(ordered)
+        _last_signature = sig
+        DEFAULT_MODEL = get_default_model() or "gemma12b-edge"
     return MODELS
 
 
-DEFAULT_MODEL = "gemma12b-edge" if "gemma12b-edge" in MODELS else (next(iter(MODELS)) if MODELS else "gemma12b-edge")
+DEFAULT_MODEL = get_default_model() or "gemma12b-edge"
 
 
 def get_model_details(model_id):
@@ -448,9 +508,8 @@ def save_model_profile(model_id, payload):
             final_id = clean_new_id
 
     try:
-        with open(CENTRAL_CONFIG_PATH, "w", encoding="utf-8") as f:
-            json.dump(raw_data, f, indent=2, ensure_ascii=False)
-        reload_models()
+        atomic_write_json(CENTRAL_CONFIG_PATH, raw_data, indent=2, ensure_ascii=False)
+        reload_models(force=True)
         return True, f"Perfil '{final_id}' guardado correctamente"
     except Exception as e:
         return False, f"Error escribiendo config.json: {e}"
@@ -547,9 +606,8 @@ def create_model_profile(profile_id, payload):
     raw_data["models"][profile_id] = new_profile
 
     try:
-        with open(CENTRAL_CONFIG_PATH, "w", encoding="utf-8") as f:
-            json.dump(raw_data, f, indent=2, ensure_ascii=False)
-        reload_models()
+        atomic_write_json(CENTRAL_CONFIG_PATH, raw_data, indent=2, ensure_ascii=False)
+        reload_models(force=True)
         return True, "Perfil creado correctamente"
     except Exception as e:
         return False, f"Error creando perfil: {e}"
@@ -576,9 +634,8 @@ def delete_model_profile(profile_id):
     del raw_data["models"][profile_id]
 
     try:
-        with open(CENTRAL_CONFIG_PATH, "w", encoding="utf-8") as f:
-            json.dump(raw_data, f, indent=2, ensure_ascii=False)
-        reload_models()
+        atomic_write_json(CENTRAL_CONFIG_PATH, raw_data, indent=2, ensure_ascii=False)
+        reload_models(force=True)
         return True, f"Perfil '{profile_id}' eliminado correctamente"
     except Exception as e:
         return False, f"Error al guardar config.json tras eliminar: {e}"

@@ -138,6 +138,98 @@
     opacity: 0.6;
   }
 
+  .btn-create-global {
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.12) 0%, rgba(2, 132, 199, 0.08) 100%);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    color: #38bdf8;
+    padding: 7px 14px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    transition: all 0.15s ease;
+  }
+
+  .btn-create-global:hover {
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.22) 0%, rgba(2, 132, 199, 0.16) 100%);
+    border-color: #38bdf8;
+    color: #ffffff;
+    box-shadow: 0 0 14px var(--accent-glow);
+    transform: translateY(-1px);
+  }
+
+  .btn-create-global:active {
+    transform: translateY(0);
+  }
+
+  /* Error Banner */
+  .error-banner {
+    background: rgba(248, 113, 113, 0.1);
+    border: 1px solid rgba(248, 113, 113, 0.35);
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin-bottom: 24px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 4px 20px rgba(248, 113, 113, 0.08);
+  }
+
+  .error-banner-content {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .error-banner-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+    line-height: 1.2;
+  }
+
+  .error-banner-body {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .error-banner-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #f87171;
+    margin-bottom: 4px;
+  }
+
+  .error-banner-text {
+    font-size: 12px;
+    color: #fca5a5;
+    font-family: 'JetBrains Mono', monospace;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 140px;
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.35);
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(248, 113, 113, 0.2);
+  }
+
+  .error-banner-close {
+    background: none;
+    border: none;
+    color: #f87171;
+    font-size: 20px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 4px;
+    opacity: 0.7;
+    transition: opacity 0.15s ease;
+  }
+
+  .error-banner-close:hover {
+    opacity: 1;
+  }
+
   /* GPU Status Bar */
   .status-card {
     background: linear-gradient(180deg, var(--surface-1) 0%, rgba(13, 13, 16, 0.8) 100%);
@@ -591,11 +683,30 @@
     max-width: 640px;
     max-height: 90vh;
     overflow-y: auto;
-    padding: 24px;
+    padding: 22px 24px;
     box-shadow: 0 24px 60px rgba(0, 0, 0, 0.85);
     position: relative;
     transform: scale(0.97);
     transition: transform 0.18s ease;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  }
+
+  .modal-box::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .modal-box::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .modal-box::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.18);
+    border-radius: 10px;
+  }
+
+  .modal-box::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.35);
   }
 
   .modal-backdrop.open .modal-box {
@@ -677,12 +788,78 @@
     border-color: var(--accent);
   }
 
+  /* Ocultar flechitas de número feas nativas del navegador */
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type=number] {
+    -moz-appearance: textfield;
+  }
+
   .form-textarea {
     font-family: 'JetBrains Mono', monospace;
     min-height: 75px;
-    resize: vertical;
+    resize: none;
     line-height: 1.45;
     font-size: 11.5px;
+    overflow-y: hidden;
+    transition: height 0.12s ease;
+  }
+
+  /* Fast Color Picker & Swatches */
+  .color-picker-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #141417;
+    border: 1px solid var(--border-subtle);
+    border-radius: 7px;
+    padding: 4px 8px;
+  }
+
+  .color-picker-native {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    width: 26px;
+    height: 26px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .color-picker-native::-webkit-color-swatch-wrapper {
+    padding: 0;
+  }
+
+  .color-picker-native::-webkit-color-swatch {
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 5px;
+  }
+
+  .color-swatches {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+  }
+
+  .color-dot {
+    width: 17px;
+    height: 17px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transition: transform 0.12s ease, border-color 0.12s ease;
+  }
+
+  .color-dot:hover {
+    transform: scale(1.22);
+    border-color: #ffffff;
   }
 
   .modal-actions {
@@ -726,6 +903,25 @@
     color: var(--text-primary);
     border-color: var(--border-hover);
   }
+
+  .btn-delete-profile {
+    background: transparent;
+    color: #f87171;
+    border: 1px solid rgba(248, 113, 113, 0.3);
+    padding: 8px 14px;
+    border-radius: 7px;
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    margin-right: auto;
+    transition: all 0.15s ease;
+  }
+
+  .btn-delete-profile:hover {
+    background: rgba(239, 68, 68, 0.14);
+    border-color: #ef4444;
+    color: #ef4444;
+  }
 </style>
 </head>
 <body>
@@ -739,14 +935,35 @@
       <p class="subtitle">Orquestador local ultra-ligero para llama.cpp • Puerto {{PROXY_PORT}}</p>
     </div>
 
-    <div class="quick-endpoint" onclick="copyEndpoint()" title="Clic para copiar URL base de OpenAI">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-      </svg>
-      <span id="endpointText">http://localhost:{{PROXY_PORT}}/v1</span>
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+      <button type="button" class="btn-create-global" onclick="openCreateModal()" title="Crear un nuevo perfil de modelo">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        <span>Nuevo Perfil</span>
+      </button>
+
+      <div class="quick-endpoint" onclick="copyEndpoint()" title="Clic para copiar URL base de OpenAI">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </svg>
+        <span id="endpointText">http://localhost:{{PROXY_PORT}}/v1</span>
+      </div>
     </div>
   </header>
+
+  <div id="errorBanner" class="error-banner" style="display:none;">
+    <div class="error-banner-content">
+      <div class="error-banner-icon">⚠️</div>
+      <div class="error-banner-body">
+        <div class="error-banner-title">Error al ejecutar el servidor llama.cpp</div>
+        <div id="errorBannerText" class="error-banner-text"></div>
+      </div>
+      <button type="button" class="error-banner-close" onclick="closeErrorBanner()">&times;</button>
+    </div>
+  </div>
 
   <div class="status-card">
     <div class="status-meta">
@@ -763,54 +980,91 @@
   {{MODEL_SECTIONS}}
 
   <footer>
-    Optimizado para portátiles y GPUs de bajo VRAM (4–6 GB) • Cero dependencias externas<br>
+    Simple y optimizado • Cero dependencias externas<br>
     Auto-apagado inteligente ajustable (10m, 30m, 60m o continuo) para reposo total de la GPU.<br>
-    Conéctate desde Zed, OpenCode o Cursor a: <code>http://localhost:{{PROXY_PORT}}/v1</code>
+    Conéctate desde Zed, OpenCode o Cursor a: <code id="footerEndpoint">http://localhost:{{PROXY_PORT}}/v1</code>
   </footer>
 </div>
 
 <!-- Modal: Editar Perfil de Modelo -->
-<div id="editModal" class="modal-backdrop" onclick="if(event.target===this) closeEditModal()">
+<div id="editModal" class="modal-backdrop">
   <div class="modal-box">
     <div class="modal-header">
       <h3 class="modal-title">⚙ Configurar Perfil: <span id="editModelId" style="color:var(--accent);"></span></h3>
       <button type="button" class="modal-close" onclick="closeEditModal()">&times;</button>
     </div>
-    <form id="editForm" onsubmit="submitEditForm(event)">
-      <input type="hidden" id="editId" name="id">
+    <form id="editForm" autocomplete="off" onsubmit="submitEditForm(event)">
+      <input type="hidden" id="editOriginalId" name="original_id">
       <div class="form-grid">
-        <div class="form-group full">
-          <label class="form-label">Archivo de Modelo (.gguf)</label>
-          <select id="editModelFile" name="model_file" class="form-select"></select>
+        <div class="form-group">
+          <label class="form-label">ID / Nombre del Perfil <span style="color:var(--text-muted); font-size:10px; font-weight:normal;">(Identificador único)</span></label>
+          <input type="text" id="editId" name="id" class="form-input" placeholder="ej. gemma12b-edge" autocomplete="off" oninput="document.getElementById('editModelId').textContent = this.value" required>
         </div>
         <div class="form-group">
-          <label class="form-label">Contexto (Tokens)</label>
-          <input type="number" id="editCtx" name="ctx" class="form-input" min="2048" max="262144" step="1024" required>
+          <label class="form-label">Familia / Agrupación</label>
+          <input type="text" id="editFamily" name="family" class="form-input" placeholder="Ej. Gemma 4, Qwen 2.5" autocomplete="off">
+        </div>
+        <div class="form-group full">
+          <label class="form-label">Archivo de Modelo (.gguf)</label>
+          <select id="editModelFile" name="model_file" class="form-select" required></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Proyector Visión (mmproj, Opcional)</label>
+          <select id="editProjectorFile" name="projector_file" class="form-select" onchange="autoUpdateBadgeColor('edit')"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Draft / MTP Speculative (Opcional)</label>
+          <select id="editDraftFile" name="draft_file" class="form-select" onchange="autoUpdateBadgeColor('edit')"></select>
+        </div>
+        <div class="form-group">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+            <label class="form-label" style="margin-bottom:0;">Contexto (Tokens)</label>
+            <select class="form-select" onchange="setContextPreset('edit', this.value)" style="width:auto; padding:2px 8px; font-size:11px; height:24px; background:var(--surface-2); border:1px solid var(--border-subtle); border-radius:5px; color:var(--text-muted); cursor:pointer;">
+              <option value="" disabled selected>Preajustes</option>
+              <option value="4096">4096</option>
+              <option value="8192">8192</option>
+              <option value="16384">16384</option>
+              <option value="24576">24576</option>
+              <option value="32768">32768</option>
+              <option value="65536">65536</option>
+              <option value="131072">131072</option>
+              <option value="262144">262144</option>
+            </select>
+          </div>
+          <input type="number" id="editCtx" name="ctx" class="form-input" min="256" step="any" placeholder="16384" autocomplete="off" required>
         </div>
         <div class="form-group">
           <label class="form-label">Temperatura</label>
-          <input type="number" id="editTemp" name="temp" class="form-input" min="0" max="2" step="0.05" required>
+          <input type="number" id="editTemp" name="temp" class="form-input" min="0" max="2" step="0.05" placeholder="0.70" autocomplete="off" required>
         </div>
         <div class="form-group">
           <label class="form-label">Top P</label>
-          <input type="number" id="editTopP" name="top_p" class="form-input" min="0" max="1" step="0.05">
+          <input type="number" id="editTopP" name="top_p" class="form-input" min="0" max="1" step="0.05" placeholder="0.95" autocomplete="off">
         </div>
         <div class="form-group">
           <label class="form-label">Top K</label>
-          <input type="number" id="editTopK" name="top_k" class="form-input" min="1" max="100" step="1">
+          <input type="number" id="editTopK" name="top_k" class="form-input" min="1" max="100" step="1" placeholder="40" autocomplete="off">
         </div>
         <div class="form-group">
           <label class="form-label">Repeat Penalty</label>
-          <input type="number" id="editRepeatPenalty" name="repeat_penalty" class="form-input" min="0" max="2" step="0.01">
+          <input type="number" id="editRepeatPenalty" name="repeat_penalty" class="form-input" min="0" max="2" step="0.01" placeholder="1.10" autocomplete="off">
         </div>
         <div class="form-group">
           <label class="form-label">Presence Penalty</label>
-          <input type="number" id="editPresencePenalty" name="presence_penalty" class="form-input" min="-2" max="2" step="0.1">
+          <input type="number" id="editPresencePenalty" name="presence_penalty" class="form-input" min="-2" max="2" step="0.1" placeholder="0.00" autocomplete="off">
         </div>
         <div class="form-group">
-          <label class="form-label">KV Cache K</label>
+          <label class="form-label">Min P (Opcional)</label>
+          <input type="number" id="editMinP" name="min_p" class="form-input" min="0" max="1" step="0.01" placeholder="0.05 (o vacío)" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Reasoning Budget (Thinking Tokens)</label>
+          <input type="number" id="editReasoningBudget" name="reasoning_budget" class="form-input" min="0" step="1024" placeholder="8192 (0 = libre)" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label class="form-label">KV Cache K <span style="color:#38bdf8; font-size:11px; font-weight:500;">(⭐ Recomendado q8_0)</span></label>
           <select id="editCacheK" name="cache_type_k" class="form-select">
-            <option value="q8_0">q8_0 (Alta fidelidad recomendado)</option>
+            <option value="q8_0">q8_0 (Alta fidelidad • Recomendado)</option>
             <option value="q4_0">q4_0 (Máximo ahorro VRAM)</option>
             <option value="f16">f16 (Precisión completa)</option>
           </select>
@@ -832,22 +1086,34 @@
         </div>
         <div class="form-group">
           <label class="form-label">Color del Badge</label>
-          <input type="text" id="editBadgeColor" name="badge_color" class="form-input" placeholder="#38bdf8">
+          <div class="color-picker-wrap">
+            <input type="color" id="editBadgeColorPicker" class="color-picker-native" value="#38bdf8" oninput="syncColorInput('edit', this.value)" title="Elegir color personalizado">
+            <input type="text" id="editBadgeColor" name="badge_color" class="form-input" style="border:none; padding:4px 0; background:transparent; width:72px; font-family:'JetBrains Mono',monospace;" value="#38bdf8" oninput="syncColorPicker('edit', this.value)">
+            <div class="color-swatches" title="Colores rápidos">
+              <span class="color-dot" style="background:#38bdf8;" onclick="setColor('edit', '#38bdf8')" title="Azul / Estándar"></span>
+              <span class="color-dot" style="background:#c084fc;" onclick="setColor('edit', '#c084fc')" title="Púrpura / Visión"></span>
+              <span class="color-dot" style="background:#10b981;" onclick="setColor('edit', '#10b981')" title="Verde / MTP"></span>
+              <span class="color-dot" style="background:#f59e0b;" onclick="setColor('edit', '#f59e0b')" title="Ámbar / Razonamiento"></span>
+              <span class="color-dot" style="background:#ec4899;" onclick="setColor('edit', '#ec4899')" title="Rosa / Visión + MTP"></span>
+            </div>
+          </div>
         </div>
         <div class="form-group full">
           <label class="form-label">Etiqueta Badge</label>
-          <input type="text" id="editBadge" name="badge" class="form-input" placeholder="Ej. 12B Edge">
+          <input type="text" id="editBadge" name="badge" class="form-input" placeholder="Ej. 12B Edge" autocomplete="off">
         </div>
         <div class="form-group full">
           <label class="form-label">Descripción</label>
-          <input type="text" id="editDesc" name="desc" class="form-input" placeholder="Descripción breve del modelo">
+          <input type="text" id="editDesc" name="desc" class="form-input" placeholder="Descripción breve del modelo" autocomplete="off">
         </div>
         <div class="form-group full">
           <label class="form-label">System Prompt Personalizado (Opcional)</label>
-          <textarea id="editSystemPrompt" name="system_prompt" class="form-textarea" placeholder="Instrucción maestra para este perfil..."></textarea>
+          <textarea id="editSystemPrompt" name="system_prompt" class="form-textarea" placeholder="Instrucción maestra para este perfil..." oninput="autoResizeTextarea(this)"></textarea>
+          <span style="display:block; font-size:11px; color:var(--text-muted); margin-top:5px; line-height:1.4;">ℹ️ Se omitirá automáticamente si se usan agentes o editores que envíen su propio prompt de sistema (como Zed u OpenCode).</span>
         </div>
       </div>
       <div class="modal-actions">
+        <button type="button" class="btn-delete-profile" onclick="promptDeleteModel()">🗑 Eliminar Perfil</button>
         <button type="button" class="btn-cancel" onclick="closeEditModal()">Cancelar</button>
         <button type="submit" id="btnSaveEdit" class="btn-save">Guardar Cambios</button>
       </div>
@@ -855,43 +1121,151 @@
   </div>
 </div>
 
-<!-- Modal: Nuevo Perfil -->
-<div id="createModal" class="modal-backdrop" onclick="if(event.target===this) closeCreateModal()">
+<!-- Modal: Confirmar Eliminación Segura de Perfil -->
+<div id="deleteModal" class="modal-backdrop">
+  <div class="modal-box" style="max-width: 440px;">
+    <div class="modal-header">
+      <h3 class="modal-title" style="color:#f87171;">⚠️ Confirmar Eliminación</h3>
+      <button type="button" class="modal-close" onclick="closeDeleteModal()">&times;</button>
+    </div>
+    <div style="padding: 10px 0 18px 0;">
+      <p style="font-size: 13.5px; color: var(--text-primary); margin: 0 0 10px 0; line-height: 1.5;">
+        ¿Estás seguro de que deseas eliminar el perfil <code id="deleteModelName" style="color:var(--accent); font-weight:600;"></code>?
+      </p>
+      <p style="font-size: 12px; color: var(--text-muted); margin: 0; line-height: 1.5;">
+        Esta acción borrará la configuración de <code>models/config.json</code>. Tu archivo <code>.gguf</code> en disco <strong>no</strong> será eliminado.
+      </p>
+    </div>
+    <div class="modal-actions" style="margin-top: 10px;">
+      <button type="button" class="btn-cancel" onclick="closeDeleteModal()">Cancelar</button>
+      <button type="button" id="btnConfirmDelete" class="btn-save" style="background:#dc2626;" onclick="confirmDeleteModel()">Sí, Eliminar Perfil</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Nuevo Perfil Global -->
+<div id="createModal" class="modal-backdrop">
   <div class="modal-box">
     <div class="modal-header">
-      <h3 class="modal-title">+ Nuevo Perfil: <span id="createFamilyTitle" style="color:var(--accent);"></span></h3>
+      <h3 class="modal-title">+ Nuevo Perfil de Modelo</h3>
       <button type="button" class="modal-close" onclick="closeCreateModal()">&times;</button>
     </div>
-    <form id="createForm" onsubmit="submitCreateForm(event)">
-      <input type="hidden" id="createFolder" name="folder">
+    <form id="createForm" autocomplete="off" onsubmit="submitCreateForm(event)">
       <div class="form-grid">
-        <div class="form-group full">
+        <div class="form-group">
           <label class="form-label">ID Único del Perfil</label>
-          <input type="text" id="createId" name="id" class="form-input" placeholder="ej. gemma12b-coding-fast" required>
+          <input type="text" id="createId" name="id" class="form-input" placeholder="ej. gemma12b-coding-fast" autocomplete="off" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Familia / Agrupación</label>
+          <input type="text" id="createFamily" name="family" class="form-input" placeholder="ej. Gemma 4, Qwen 2.5" value="General" autocomplete="off" required>
         </div>
         <div class="form-group full">
-          <label class="form-label">Archivo de Modelo (.gguf)</label>
+          <label class="form-label">Archivo de Modelo Principal (.gguf)</label>
           <select id="createModelFile" name="model_file" class="form-select" required></select>
         </div>
         <div class="form-group">
-          <label class="form-label">Contexto (Tokens)</label>
-          <input type="number" id="createCtx" name="ctx" class="form-input" value="16384" step="1024" required>
+          <label class="form-label">Proyector Visión (mmproj, Opcional)</label>
+          <select id="createProjectorFile" name="projector_file" class="form-select" onchange="autoUpdateBadgeColor('create')"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Draft / MTP Speculative (Opcional)</label>
+          <select id="createDraftFile" name="draft_file" class="form-select" onchange="autoUpdateBadgeColor('create')"></select>
+        </div>
+        <div class="form-group">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+            <label class="form-label" style="margin-bottom:0;">Contexto (Tokens)</label>
+            <select class="form-select" onchange="setContextPreset('create', this.value)" style="width:auto; padding:2px 8px; font-size:11px; height:24px; background:var(--surface-2); border:1px solid var(--border-subtle); border-radius:5px; color:var(--text-muted); cursor:pointer;">
+              <option value="" disabled selected>Preajustes</option>
+              <option value="4096">4096</option>
+              <option value="8192">8192</option>
+              <option value="16384">16384</option>
+              <option value="24576">24576</option>
+              <option value="32768">32768</option>
+              <option value="65536">65536</option>
+              <option value="131072">131072</option>
+              <option value="262144">262144</option>
+            </select>
+          </div>
+          <input type="number" id="createCtx" name="ctx" class="form-input" min="256" value="16384" placeholder="16384" step="any" autocomplete="off" required>
         </div>
         <div class="form-group">
           <label class="form-label">Temperatura</label>
-          <input type="number" id="createTemp" name="temp" class="form-input" value="0.70" step="0.05" required>
+          <input type="number" id="createTemp" name="temp" class="form-input" value="0.70" placeholder="0.70" step="0.05" autocomplete="off" required>
         </div>
         <div class="form-group">
-          <label class="form-label">Etiqueta Badge</label>
-          <input type="text" id="createBadge" name="badge" class="form-input" value="Personalizado" required>
+          <label class="form-label">Top P</label>
+          <input type="number" id="createTopP" name="top_p" class="form-input" min="0" max="1" step="0.05" placeholder="0.95" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Top K</label>
+          <input type="number" id="createTopK" name="top_k" class="form-input" min="1" max="100" step="1" placeholder="40" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Repeat Penalty</label>
+          <input type="number" id="createRepeatPenalty" name="repeat_penalty" class="form-input" min="0" max="2" step="0.01" placeholder="1.10" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Presence Penalty</label>
+          <input type="number" id="createPresencePenalty" name="presence_penalty" class="form-input" min="-2" max="2" step="0.1" placeholder="0.00" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Min P (Opcional)</label>
+          <input type="number" id="createMinP" name="min_p" class="form-input" min="0" max="1" step="0.01" placeholder="0.05 (o vacío)" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Reasoning Budget (Thinking Tokens)</label>
+          <input type="number" id="createReasoningBudget" name="reasoning_budget" class="form-input" min="0" step="1024" placeholder="8192 (0 = libre)" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label class="form-label">KV Cache K <span style="color:#38bdf8; font-size:11px; font-weight:500;">(⭐ Recomendado q8_0)</span></label>
+          <select id="createCacheK" name="cache_type_k" class="form-select">
+            <option value="q8_0" selected>q8_0 (Alta fidelidad • Recomendado)</option>
+            <option value="q4_0">q4_0 (Máximo ahorro VRAM)</option>
+            <option value="f16">f16 (Precisión completa)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">KV Cache V</label>
+          <select id="createCacheV" name="cache_type_v" class="form-select">
+            <option value="q8_0" selected>q8_0 (Alta fidelidad recomendado)</option>
+            <option value="q4_0">q4_0 (Máximo ahorro VRAM)</option>
+            <option value="f16">f16 (Precisión completa)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Flash Attention</label>
+          <select id="createFa" name="fa" class="form-select">
+            <option value="on" selected>Activado (on)</option>
+            <option value="off">Desactivado (off)</option>
+          </select>
         </div>
         <div class="form-group">
           <label class="form-label">Color del Badge</label>
-          <input type="text" id="createBadgeColor" name="badge_color" class="form-input" value="#10b981">
+          <div class="color-picker-wrap">
+            <input type="color" id="createBadgeColorPicker" class="color-picker-native" value="#38bdf8" oninput="syncColorInput('create', this.value)" title="Elegir color personalizado">
+            <input type="text" id="createBadgeColor" name="badge_color" class="form-input" style="border:none; padding:4px 0; background:transparent; width:72px; font-family:'JetBrains Mono',monospace;" value="#38bdf8" oninput="syncColorPicker('create', this.value)">
+            <div class="color-swatches" title="Colores rápidos">
+              <span class="color-dot" style="background:#38bdf8;" onclick="setColor('create', '#38bdf8')" title="Azul / Estándar"></span>
+              <span class="color-dot" style="background:#c084fc;" onclick="setColor('create', '#c084fc')" title="Púrpura / Visión"></span>
+              <span class="color-dot" style="background:#10b981;" onclick="setColor('create', '#10b981')" title="Verde / MTP"></span>
+              <span class="color-dot" style="background:#f59e0b;" onclick="setColor('create', '#f59e0b')" title="Ámbar / Razonamiento"></span>
+              <span class="color-dot" style="background:#ec4899;" onclick="setColor('create', '#ec4899')" title="Rosa / Visión + MTP"></span>
+            </div>
+          </div>
+        </div>
+        <div class="form-group full">
+          <label class="form-label">Etiqueta Badge</label>
+          <input type="text" id="createBadge" name="badge" class="form-input" value="16k Tokens" autocomplete="off" required>
         </div>
         <div class="form-group full">
           <label class="form-label">Descripción</label>
-          <input type="text" id="createDesc" name="desc" class="form-input" placeholder="Descripción breve del perfil" required>
+          <input type="text" id="createDesc" name="desc" class="form-input" placeholder="Descripción breve del perfil" autocomplete="off" required>
+        </div>
+        <div class="form-group full">
+          <label class="form-label">System Prompt Personalizado (Opcional)</label>
+          <textarea id="createSystemPrompt" name="system_prompt" class="form-textarea" placeholder="Instrucción maestra para este nuevo perfil..." oninput="autoResizeTextarea(this)"></textarea>
+          <span style="display:block; font-size:11px; color:var(--text-muted); margin-top:5px; line-height:1.4;">ℹ️ Se omitirá automáticamente si se usan agentes o editores que envíen su propio prompt de sistema (como Zed u OpenCode).</span>
         </div>
       </div>
       <div class="modal-actions">
@@ -905,6 +1279,8 @@
 <div id="toast">✓ URL de la API copiada al portapapeles</div>
 
 <script>
+  let cachedCatalog = null;
+
   function showToast(msg) {
     const toast = document.getElementById('toast');
     toast.textContent = msg;
@@ -912,11 +1288,82 @@
     setTimeout(() => toast.classList.remove('show'), 2400);
   }
 
+  function copyToClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text);
+    } else {
+      // Fallback para tablets, móviles y redes locales HTTP no seguras
+      return new Promise((resolve, reject) => {
+        try {
+          const textArea = document.createElement("textarea");
+          textArea.value = text;
+          textArea.style.position = "fixed";
+          textArea.style.left = "-9999px";
+          textArea.style.top = "-9999px";
+          textArea.style.opacity = "0";
+          document.body.appendChild(textArea);
+          textArea.focus();
+          textArea.select();
+          const success = document.execCommand('copy');
+          document.body.removeChild(textArea);
+          if (success) resolve();
+          else reject(new Error("execCommand falló"));
+        } catch (err) {
+          reject(err);
+        }
+      });
+    }
+  }
+
   function copyEndpoint() {
     const text = document.getElementById('endpointText').innerText;
-    navigator.clipboard.writeText(text).then(() => {
-      showToast('✓ URL de la API copiada al portapapeles');
-    });
+    copyToClipboard(text)
+      .then(() => {
+        showToast('✓ URL de la API copiada al portapapeles');
+      })
+      .catch(() => {
+        showToast('URL: ' + text);
+      });
+  }
+
+  function updateDynamicEndpoints() {
+    const host = window.location.hostname || 'localhost';
+    const port = window.location.port || '{{PROXY_PORT}}';
+    const endpointUrl = `http://${host}:${port}/v1`;
+    const endpointEl = document.getElementById('endpointText');
+    if (endpointEl) {
+      endpointEl.textContent = endpointUrl;
+    }
+    const footerEndpointEl = document.getElementById('footerEndpoint');
+    if (footerEndpointEl) {
+      footerEndpointEl.textContent = endpointUrl;
+    }
+  }
+
+  function closeErrorBanner() {
+    const banner = document.getElementById('errorBanner');
+    if (banner) banner.style.display = 'none';
+  }
+
+  function showErrorBanner(msg) {
+    if (!msg) return;
+    const banner = document.getElementById('errorBanner');
+    const textEl = document.getElementById('errorBannerText');
+    if (banner && textEl) {
+      textEl.textContent = msg;
+      banner.style.display = 'block';
+    }
+  }
+
+  function checkLastError() {
+    fetch('/api/last-error')
+      .then(r => r.json())
+      .then(d => {
+        if (d && d.error) {
+          showErrorBanner(d.error);
+        }
+      })
+      .catch(() => {});
   }
 
   function changeIdleTimeout(val) {
@@ -933,43 +1380,187 @@
     .catch(() => showToast('Error actualizando timeout'));
   }
 
-  function openEditModal(modelId) {
-    fetch('/api/model/details?model=' + encodeURIComponent(modelId))
-      .then(r => r.json())
-      .then(d => {
-        if (d.error) {
-          showToast(d.error);
-          return;
-        }
-        document.getElementById('editModelId').textContent = d.id;
-        document.getElementById('editId').value = d.id;
-        document.getElementById('editCtx').value = d.ctx;
-        document.getElementById('editTemp').value = d.temp;
-        document.getElementById('editTopP').value = d.top_p !== null ? d.top_p : '';
-        document.getElementById('editTopK').value = d.top_k !== null ? d.top_k : '';
-        document.getElementById('editRepeatPenalty').value = d.repeat_penalty !== null ? d.repeat_penalty : '';
-        document.getElementById('editPresencePenalty').value = d.presence_penalty !== null ? d.presence_penalty : '';
-        document.getElementById('editCacheK').value = d.cache_type_k || 'q8_0';
-        document.getElementById('editCacheV').value = d.cache_type_v || 'q8_0';
-        document.getElementById('editFa').value = d.fa === 'off' ? 'off' : 'on';
-        document.getElementById('editBadge').value = d.badge || '';
-        document.getElementById('editBadgeColor').value = d.badge_color || '#38bdf8';
-        document.getElementById('editDesc').value = d.desc || '';
-        document.getElementById('editSystemPrompt').value = d.system_prompt || '';
+  async function getCatalog(forceRefresh = false) {
+    if (cachedCatalog && !forceRefresh) return cachedCatalog;
+    try {
+      const r = await fetch('/api/catalog');
+      cachedCatalog = await r.json();
+      return cachedCatalog;
+    } catch (e) {
+      showToast('Error cargando catálogo de archivos .gguf');
+      return { models: [], projectors: [], drafts: [], all: [] };
+    }
+  }
 
-        const selectGguf = document.getElementById('editModelFile');
-        selectGguf.innerHTML = '';
-        (d.available_gguf || []).forEach(f => {
-          const opt = document.createElement('option');
-          opt.value = f;
-          opt.textContent = f;
-          if (f === d.model_file) opt.selected = true;
-          selectGguf.appendChild(opt);
-        });
+  function populateSelect(selectEl, items, selectedValue, allowEmpty = false, emptyLabel = "Ninguno") {
+    selectEl.innerHTML = '';
+    if (allowEmpty) {
+      const optEmpty = document.createElement('option');
+      optEmpty.value = '';
+      optEmpty.textContent = emptyLabel;
+      if (!selectedValue) optEmpty.selected = true;
+      selectEl.appendChild(optEmpty);
+    }
 
-        document.getElementById('editModal').classList.add('open');
-      })
-      .catch(() => showToast('Error al cargar datos del modelo'));
+    let foundSelected = false;
+    (items || []).forEach(item => {
+      const filename = typeof item === 'string' ? item : item.filename;
+      const sizeStr = item.size_gb ? ` (${item.size_gb} GB)` : '';
+      const opt = document.createElement('option');
+      opt.value = filename;
+      opt.textContent = `${filename}${sizeStr}`;
+      if (filename === selectedValue) {
+        opt.selected = true;
+        foundSelected = true;
+      }
+      selectEl.appendChild(opt);
+    });
+
+    // Si el archivo configurado no estaba en la lista clasificada, agregarlo para no perderlo
+    if (selectedValue && !foundSelected && selectedValue !== '') {
+      const optCurrent = document.createElement('option');
+      optCurrent.value = selectedValue;
+      optCurrent.textContent = `${selectedValue} (Actual)`;
+      optCurrent.selected = true;
+      selectEl.appendChild(optCurrent);
+    }
+  }
+
+  function populateDraftSelect(selectEl, allGguf, selectedValue) {
+    selectEl.innerHTML = '';
+    
+    // Opción 1: Ninguno
+    const optNone = document.createElement('option');
+    optNone.value = '';
+    optNone.textContent = 'Ninguno (Desactivado)';
+    if (!selectedValue) optNone.selected = true;
+    selectEl.appendChild(optNone);
+
+    // Opción 2: Incrustado / Nativo
+    const optEmbedded = document.createElement('option');
+    optEmbedded.value = '__embedded__';
+    optEmbedded.textContent = '⚡ MTP Incrustado en el modelo principal (Nativo)';
+    if (selectedValue === '__embedded__') optEmbedded.selected = true;
+    selectEl.appendChild(optEmbedded);
+
+    // Opciones 3..N: Todos los archivos .gguf sin filtrar
+    let foundSelected = (selectedValue === '' || selectedValue === '__embedded__');
+    (allGguf || []).forEach(item => {
+      const filename = typeof item === 'string' ? item : item.filename;
+      const sizeStr = item.size_gb ? ` (${item.size_gb} GB)` : '';
+      const opt = document.createElement('option');
+      opt.value = filename;
+      opt.textContent = `${filename}${sizeStr}`;
+      if (filename === selectedValue) {
+        opt.selected = true;
+        foundSelected = true;
+      }
+      selectEl.appendChild(opt);
+    });
+
+    if (selectedValue && !foundSelected) {
+      const optCurrent = document.createElement('option');
+      optCurrent.value = selectedValue;
+      optCurrent.textContent = `${selectedValue} (Actual)`;
+      optCurrent.selected = true;
+      selectEl.appendChild(optCurrent);
+    }
+  }
+
+  function setColor(prefix, hex) {
+    const textEl = document.getElementById(prefix + 'BadgeColor');
+    const pickerEl = document.getElementById(prefix + 'BadgeColorPicker');
+    if (textEl) textEl.value = hex;
+    if (pickerEl && /^#[0-9A-Fa-f]{6}$/.test(hex)) pickerEl.value = hex;
+  }
+
+  function syncColorInput(prefix, val) {
+    const textEl = document.getElementById(prefix + 'BadgeColor');
+    if (textEl) textEl.value = val;
+  }
+
+  function syncColorPicker(prefix, val) {
+    const pickerEl = document.getElementById(prefix + 'BadgeColorPicker');
+    if (pickerEl && /^#[0-9A-Fa-f]{6}$/.test(val)) {
+      pickerEl.value = val;
+    }
+  }
+
+  function autoUpdateBadgeColor(prefix) {
+    const projEl = document.getElementById(prefix + 'ProjectorFile');
+    const draftEl = document.getElementById(prefix + 'DraftFile');
+    if (!projEl || !draftEl) return;
+
+    const hasVision = Boolean(projEl.value);
+    const hasMtp = Boolean(draftEl.value);
+
+    let targetColor = '#38bdf8'; // Estándar sin visión ni mtp
+    if (hasVision && hasMtp) {
+      targetColor = '#ec4899'; // Híbrido Visión + MTP (Rosa fucsia)
+    } else if (hasVision) {
+      targetColor = '#c084fc'; // Visión (Púrpura)
+    } else if (hasMtp) {
+      targetColor = '#10b981'; // MTP / Speculative (Verde esmeralda)
+    }
+    setColor(prefix, targetColor);
+  }
+
+  function setContextPreset(prefix, val) {
+    if (!val) return;
+    const input = document.getElementById(prefix + 'Ctx');
+    if (input) {
+      input.value = val;
+    }
+  }
+
+  function autoResizeTextarea(el) {
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.max(75, el.scrollHeight + 2) + 'px';
+  }
+
+  async function openEditModal(modelId) {
+    try {
+      const res = await fetch('/api/model/details?model=' + encodeURIComponent(modelId));
+      const d = await res.json();
+      if (d.error) {
+        showToast(d.error);
+        return;
+      }
+
+      const catalog = d.catalog || await getCatalog();
+      const allFiles = catalog.all || [];
+
+      document.getElementById('editModelId').textContent = d.id;
+      document.getElementById('editOriginalId').value = d.id;
+      document.getElementById('editId').value = d.id;
+      document.getElementById('editFamily').value = d.family || '';
+      document.getElementById('editCtx').value = d.ctx;
+      document.getElementById('editTemp').value = d.temp;
+      document.getElementById('editTopP').value = d.top_p !== null ? d.top_p : '';
+      document.getElementById('editTopK').value = d.top_k !== null ? d.top_k : '';
+      document.getElementById('editRepeatPenalty').value = d.repeat_penalty !== null ? d.repeat_penalty : '';
+      document.getElementById('editPresencePenalty').value = d.presence_penalty !== null ? d.presence_penalty : '';
+      document.getElementById('editMinP').value = d.min_p !== null && d.min_p !== undefined ? d.min_p : '';
+      document.getElementById('editReasoningBudget').value = d.reasoning_budget !== null && d.reasoning_budget !== undefined ? d.reasoning_budget : '';
+      document.getElementById('editCacheK').value = d.cache_type_k || 'q8_0';
+      document.getElementById('editCacheV').value = d.cache_type_v || 'q8_0';
+      document.getElementById('editFa').value = d.fa === 'off' ? 'off' : 'on';
+      document.getElementById('editBadge').value = d.badge || '';
+      setColor('edit', d.badge_color || '#38bdf8');
+      document.getElementById('editDesc').value = d.desc || '';
+      document.getElementById('editSystemPrompt').value = d.system_prompt || '';
+
+      // Todos los .gguf disponibles sin filtrar para los 3 selectores
+      populateSelect(document.getElementById('editModelFile'), allFiles, d.model_file, false);
+      populateSelect(document.getElementById('editProjectorFile'), allFiles, d.projector_file, true, "Ninguno (Solo Texto / Código)");
+      populateDraftSelect(document.getElementById('editDraftFile'), allFiles, d.draft_file);
+
+      document.getElementById('editModal').classList.add('open');
+      setTimeout(() => autoResizeTextarea(document.getElementById('editSystemPrompt')), 50);
+    } catch (e) {
+      showToast('Error al cargar datos del modelo');
+    }
   }
 
   function closeEditModal() {
@@ -983,14 +1574,20 @@
     btn.textContent = 'Guardando...';
 
     const payload = {
-      id: document.getElementById('editId').value,
+      original_id: document.getElementById('editOriginalId').value,
+      id: document.getElementById('editId').value.trim(),
+      family: document.getElementById('editFamily').value,
       model_file: document.getElementById('editModelFile').value,
+      projector_file: document.getElementById('editProjectorFile').value,
+      draft_file: document.getElementById('editDraftFile').value,
       ctx: parseInt(document.getElementById('editCtx').value),
       temp: parseFloat(document.getElementById('editTemp').value),
       top_p: document.getElementById('editTopP').value ? parseFloat(document.getElementById('editTopP').value) : null,
       top_k: document.getElementById('editTopK').value ? parseInt(document.getElementById('editTopK').value) : null,
+      min_p: document.getElementById('editMinP').value !== '' ? parseFloat(document.getElementById('editMinP').value) : null,
       repeat_penalty: document.getElementById('editRepeatPenalty').value ? parseFloat(document.getElementById('editRepeatPenalty').value) : null,
       presence_penalty: document.getElementById('editPresencePenalty').value ? parseFloat(document.getElementById('editPresencePenalty').value) : null,
+      reasoning_budget: document.getElementById('editReasoningBudget').value !== '' ? parseInt(document.getElementById('editReasoningBudget').value) : null,
       cache_type_k: document.getElementById('editCacheK').value,
       cache_type_v: document.getElementById('editCacheV').value,
       fa: document.getElementById('editFa').value,
@@ -1024,29 +1621,36 @@
     });
   }
 
-  function openCreateModal(folderName, familyName) {
-    document.getElementById('createFolder').value = folderName;
-    document.getElementById('createFamilyTitle').textContent = familyName;
+  async function openCreateModal() {
     document.getElementById('createId').value = '';
+    document.getElementById('createFamily').value = 'General';
     document.getElementById('createDesc').value = '';
+    document.getElementById('createSystemPrompt').value = '';
+    document.getElementById('createCtx').value = '16384';
+    document.getElementById('createTemp').value = '0.70';
+    document.getElementById('createTopP').value = '';
+    document.getElementById('createTopK').value = '';
+    document.getElementById('createRepeatPenalty').value = '';
+    document.getElementById('createPresencePenalty').value = '';
+    document.getElementById('createMinP').value = '';
+    document.getElementById('createReasoningBudget').value = '';
+    document.getElementById('createBadge').value = '16k Tokens';
+    setColor('create', '#38bdf8');
 
-    fetch('/api/model/folders')
-      .then(r => r.json())
-      .then(folders => {
-        const folderData = folders[folderName];
-        const selectGguf = document.getElementById('createModelFile');
-        selectGguf.innerHTML = '';
-        if (folderData && folderData.gguf_files) {
-          folderData.gguf_files.forEach(f => {
-            const opt = document.createElement('option');
-            opt.value = f;
-            opt.textContent = f;
-            selectGguf.appendChild(opt);
-          });
-        }
-        document.getElementById('createModal').classList.add('open');
-      })
-      .catch(() => showToast('Error al cargar archivos'));
+    const catalog = await getCatalog(true);
+    const allFiles = catalog.all || [];
+    if (!allFiles || allFiles.length === 0) {
+      showToast('⚠️ No hay archivos .gguf en models/. Coloca al menos uno primero.');
+      return;
+    }
+
+    // Todos los .gguf disponibles sin filtrar para los 3 selectores
+    populateSelect(document.getElementById('createModelFile'), allFiles, '', false);
+    populateSelect(document.getElementById('createProjectorFile'), allFiles, '', true, "Ninguno (Solo Texto / Código)");
+    populateDraftSelect(document.getElementById('createDraftFile'), allFiles, '');
+
+    document.getElementById('createModal').classList.add('open');
+    setTimeout(() => autoResizeTextarea(document.getElementById('createSystemPrompt')), 50);
   }
 
   function closeCreateModal() {
@@ -1060,14 +1664,26 @@
     btn.textContent = 'Creando...';
 
     const payload = {
-      folder: document.getElementById('createFolder').value,
       id: document.getElementById('createId').value,
+      family: document.getElementById('createFamily').value,
       model_file: document.getElementById('createModelFile').value,
+      projector_file: document.getElementById('createProjectorFile').value,
+      draft_file: document.getElementById('createDraftFile').value,
       ctx: parseInt(document.getElementById('createCtx').value),
       temp: parseFloat(document.getElementById('createTemp').value),
+      top_p: document.getElementById('createTopP').value ? parseFloat(document.getElementById('createTopP').value) : null,
+      top_k: document.getElementById('createTopK').value ? parseInt(document.getElementById('createTopK').value) : null,
+      min_p: document.getElementById('createMinP').value !== '' ? parseFloat(document.getElementById('createMinP').value) : null,
+      repeat_penalty: document.getElementById('createRepeatPenalty').value ? parseFloat(document.getElementById('createRepeatPenalty').value) : null,
+      presence_penalty: document.getElementById('createPresencePenalty').value ? parseFloat(document.getElementById('createPresencePenalty').value) : null,
+      reasoning_budget: document.getElementById('createReasoningBudget').value !== '' ? parseInt(document.getElementById('createReasoningBudget').value) : null,
+      cache_type_k: document.getElementById('createCacheK').value,
+      cache_type_v: document.getElementById('createCacheV').value,
+      fa: document.getElementById('createFa').value,
       badge: document.getElementById('createBadge').value,
       badge_color: document.getElementById('createBadgeColor').value,
       desc: document.getElementById('createDesc').value,
+      system_prompt: document.getElementById('createSystemPrompt').value,
     };
 
     fetch('/api/model/create', {
@@ -1105,6 +1721,85 @@
     chatButton.href = chatUrl.href;
     chatButton.textContent = 'Abrir llama.cpp (11436) ↗';
   }
+
+  let pendingDeleteModelId = null;
+
+  function promptDeleteModel() {
+    const modelId = document.getElementById('editOriginalId').value || document.getElementById('editId').value;
+    if (!modelId) return;
+    pendingDeleteModelId = modelId;
+    document.getElementById('deleteModelName').textContent = modelId;
+    closeEditModal();
+    document.getElementById('deleteModal').classList.add('open');
+  }
+
+  function closeDeleteModal() {
+    const modal = document.getElementById('deleteModal');
+    if (modal) modal.classList.remove('open');
+    pendingDeleteModelId = null;
+  }
+
+  function confirmDeleteModel() {
+    if (!pendingDeleteModelId) return;
+    const btn = document.getElementById('btnConfirmDelete');
+    btn.disabled = true;
+    btn.textContent = 'Eliminando...';
+
+    fetch('/api/model/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: pendingDeleteModelId })
+    })
+    .then(r => r.json())
+    .then(res => {
+      btn.disabled = false;
+      btn.textContent = 'Sí, Eliminar Perfil';
+      if (res.success) {
+        closeDeleteModal();
+        showToast('✓ ' + res.message);
+        setTimeout(() => location.reload(), 900);
+      } else {
+        showToast('Error: ' + res.message);
+      }
+    })
+    .catch(() => {
+      btn.disabled = false;
+      btn.textContent = 'Sí, Eliminar Perfil';
+      showToast('Error de red al eliminar perfil');
+    });
+  }
+
+  function setupModalBackdrop(modalId, closeFn) {
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+    let mouseDownTarget = null;
+    modal.addEventListener('mousedown', (e) => {
+      mouseDownTarget = e.target;
+    });
+    modal.addEventListener('mouseup', (e) => {
+      // Solo cerrar si TANTO el mousedown como el mouseup ocurrieron exactamente en el backdrop oscuro
+      if (mouseDownTarget === modal && e.target === modal) {
+        closeFn();
+      }
+      mouseDownTarget = null;
+    });
+  }
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeEditModal();
+      closeCreateModal();
+      closeDeleteModal();
+    }
+  });
+
+  window.addEventListener('DOMContentLoaded', () => {
+    updateDynamicEndpoints();
+    checkLastError();
+    setupModalBackdrop('editModal', closeEditModal);
+    setupModalBackdrop('createModal', closeCreateModal);
+    setupModalBackdrop('deleteModal', closeDeleteModal);
+  });
 </script>
 </body>
 </html>

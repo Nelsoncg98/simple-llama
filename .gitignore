@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 
 # Binarios y modelos pesados
+models/
 *.gguf
 *.bin
 *.exe

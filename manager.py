@@ -28,15 +28,23 @@ class ModelManager:
     def __init__(self):
         self.lock = threading.RLock()
         self.current_model = None
+        self.current_params = None
         self.process = None
         self.last_activity = time.time()
         self.running = True
         self.is_busy = False
         self._last_slots_state = None
+        self.last_error = None
 
         # Iniciar hilo de vigilancia (Watchdog para auto-apagado)
         self.watchdog_thread = threading.Thread(target=self._watchdog_loop, daemon=True)
         self.watchdog_thread.start()
+
+    def get_last_error(self):
+        """Retorna el último error reportado y lo limpia."""
+        err = self.last_error
+        self.last_error = None
+        return err
 
     def start_inference(self):
         """Bloquea el watchdog mientras se genera texto"""
@@ -77,6 +85,7 @@ class ModelManager:
             model_name = self.current_model
             self.process = None
             self.current_model = None
+            self.current_params = None
             self.is_busy = False
 
             if proc:
@@ -91,10 +100,11 @@ class ModelManager:
                         pass
                 print("[Manager] [OK] Servidor detenido. GPU y RAM liberadas (0 MB VRAM).")
 
-    def ensure_model(self, model_name):
+    def ensure_model(self, model_name, force_reload=False):
         """
         Conmuta o levanta el modelo solicitado en GPU de forma segura.
-        Si ya está corriendo, retorna True de inmediato.
+        Si ya está corriendo con la misma configuración y sin force_reload, retorna True de inmediato.
+        Si se cambiaron parámetros (como ctx o temp) o se fuerza recarga, reinicia el servidor.
         """
         with self.lock:
             self.touch()
@@ -106,11 +116,27 @@ class ModelManager:
             if target not in MODELS:
                 target = DEFAULT_MODEL
 
-            # Si ya está corriendo el modelo correcto, no hacer nada
-            if self.current_model == target and self.process and self.process.poll() is None:
+            new_config = MODELS.get(target, {})
+            config_changed = False
+            if self.current_params and self.current_model == target:
+                keys_to_compare = [
+                    "model_path", "ctx", "cache_type_k", "cache_type_v",
+                    "vision", "projector_path", "draft_path", "spec_type",
+                    "fa", "temp", "top_p", "top_k", "repeat_penalty", "presence_penalty"
+                ]
+                for k in keys_to_compare:
+                    if self.current_params.get(k) != new_config.get(k):
+                        config_changed = True
+                        break
+
+            # Si ya está corriendo el modelo correcto, no se forzó recarga y la config no cambió, continuar
+            if self.current_model == target and not force_reload and not config_changed and self.process and self.process.poll() is None:
                 return True
 
-            # Si hay otro modelo corriendo, detenerlo primero
+            if config_changed and self.current_model == target:
+                print(f"\n[Manager] [i] Se detectaron cambios en la configuración de '{target}'. Reiniciando servidor...")
+
+            # Si hay otro modelo corriendo (o se forzó recarga / cambió la config), detenerlo primero
             self.stop_server()
 
             config = MODELS[target]
@@ -121,11 +147,13 @@ class ModelManager:
 
             # Validar existencia de archivos
             if not os.path.exists(model_path):
-                print(f"[Manager] [!] ERROR: No se encontró el archivo del modelo en:\n    {model_path}")
+                self.last_error = f"No se encontró el archivo del modelo: {os.path.basename(model_path)}"
+                print(f"[Manager] [!] ERROR: {self.last_error}\n    {model_path}")
                 return False
 
             if use_vision and (not projector_path or not os.path.exists(projector_path)):
-                print(f"[Manager] [!] ERROR: No se encontró el proyector de visión en:\n    {projector_path}")
+                self.last_error = f"No se encontró el proyector de visión: {os.path.basename(projector_path) if projector_path else 'Sin especificar'}"
+                print(f"[Manager] [!] ERROR: {self.last_error}")
                 return False
 
             cache_type_k = config.get("cache_type_k", "q8_0")
@@ -214,6 +242,7 @@ class ModelManager:
                 stderr=subprocess.STDOUT,
             )
             self.current_model = target
+            self.current_params = dict(config)
 
             # Esperar a que el servidor esté listo respondiendo en /health
             start_wait = time.time()
@@ -249,6 +278,7 @@ class ModelManager:
                     err_tail = "No se pudo leer server.log."
 
                 print(f"[Manager] [!] Error al iniciar '{target}'. Motivo exacto de llama-server:\n{err_tail}\n")
+                self.last_error = f"Error al iniciar '{target}':\n{err_tail}"
                 self.stop_server()
                 return False
 

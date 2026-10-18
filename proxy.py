@@ -10,6 +10,7 @@ import json
 import re
 import urllib.request
 import urllib.error
+import threading
 from socketserver import ThreadingMixIn
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
@@ -38,7 +39,8 @@ from config import (
     get_model_details,
     save_model_profile,
     create_model_profile,
-    get_available_folders,
+    delete_model_profile,
+    scan_all_available_gguf,
 )
 from manager import manager
 
@@ -69,6 +71,20 @@ def sync_console_status(event_msg=None):
         print(f"  • Red Wi-Fi/LAN:   {'ON (http://' + local_ip + ':' + str(PROXY_PORT) + ')' if lan_on else 'OFF (Solo Localhost)'}")
         print(f"  • Auto-apagado:    {str(t_mins) + ' min' if t_mins > 0 else 'Desactivado (Nunca)'}")
         print("-" * 64)
+
+
+def trigger_background_sync():
+    """Dispara la sincronización automática de OpenCode y Pi Agent en segundo plano sin bloquear el servidor."""
+    def _worker():
+        try:
+            from sync_opencode import sync_opencode, sync_pi
+            updated = reload_models()
+            sync_opencode(updated)
+            sync_pi(updated)
+        except Exception:
+            pass
+
+    threading.Thread(target=_worker, daemon=True).start()
 
 
 # Rutas que representan prompts reales (solo estas deben despertar la GPU automáticamente)
@@ -207,26 +223,38 @@ def render_dashboard():
     sections_html = []
     for fam_name, models_in_fam in families.items():
         cards_html = []
-        fam_folder = models_in_fam[0][1].get("_folder_name", "") if models_in_fam else ""
         for m_id, cfg in models_in_fam:
             badge_color = cfg.get("badge_color", "#38bdf8")
             badge_text = cfg.get("badge", f"{cfg['ctx']} tokens")
-            btn_text = "Lanzar con Visión" if cfg.get("vision") else "Lanzar en GPU"
-            btn_bg = "background: rgba(147, 51, 234, 0.12); border-color: rgba(147, 51, 234, 0.35); color: #c084fc;" if cfg.get("vision") else ""
+            file_exists = cfg.get("file_exists", True)
+            if not file_exists:
+                status_warn = '<span class="badge" style="background:rgba(239, 68, 68, 0.15); color:#f87171; border:1px solid rgba(239, 68, 68, 0.3);">⚠️ Archivo no encontrado</span>'
+                btn_attr = 'disabled style="opacity:0.4; cursor:not-allowed;"'
+                btn_text_display = "Archivo Faltante"
+            elif is_active and m_id == manager.current_model:
+                status_warn = f'<span class="badge" style="background:{badge_color}14; color:{badge_color}; border:1px solid {badge_color}33;">{badge_text}</span>'
+                btn_attr = 'style="background: rgba(16, 185, 129, 0.18); border-color: #10b981; color: #10b981; font-weight:600;"'
+                btn_text_display = "⚡ Reiniciar en GPU"
+            else:
+                btn_text = "Lanzar con Visión" if cfg.get("vision") else "Lanzar en GPU"
+                btn_bg = "background: rgba(147, 51, 234, 0.12); border-color: rgba(147, 51, 234, 0.35); color: #c084fc;" if cfg.get("vision") else ""
+                status_warn = f'<span class="badge" style="background:{badge_color}14; color:{badge_color}; border:1px solid {badge_color}33;">{badge_text}</span>'
+                btn_attr = f'style="{btn_bg}"'
+                btn_text_display = btn_text
 
             cards_html.append(f"""
             <div class="card">
               <div class="card-top">
                 <div class="card-header">
                   <h3>{m_id}</h3>
-                  <span class="badge" style="background:{badge_color}14; color:{badge_color}; border:1px solid {badge_color}33;">{badge_text}</span>
+                  {status_warn}
                 </div>
                 <p>{cfg['desc']}</p>
               </div>
               <div class="card-bottom">
                 <form method="POST" action="/load" style="margin:0; flex:1;">
                   <input type="hidden" name="model" value="{m_id}">
-                  <button type="submit" class="btn" style="{btn_bg}">{btn_text}</button>
+                  <button type="submit" class="btn" {btn_attr}>{btn_text_display}</button>
                 </form>
                 <button type="button" class="btn-config" onclick="openEditModal('{m_id}')" title="Configurar parámetros de {m_id}">
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -242,13 +270,37 @@ def render_dashboard():
         <div class="family-section">
           <div class="family-header">
             <h2 class="family-title">{fam_name}</h2>
-            <button type="button" class="btn-new-profile" onclick="openCreateModal('{fam_folder}', '{fam_name}')" title="Crear nuevo perfil para {fam_name}">+ Nuevo Perfil</button>
           </div>
           <div class="grid">
             {''.join(cards_html)}
           </div>
         </div>
         """)
+
+    if not sections_html:
+        catalog = scan_all_available_gguf()
+        all_found = catalog.get("all", [])
+        if not all_found:
+            sections_html.append(f"""
+            <div style="text-align:center; padding:48px 24px; background:var(--surface-1); border:1px dashed var(--border-subtle); border-radius:14px; margin-bottom:36px;">
+              <div style="font-size:40px; margin-bottom:12px;">📦</div>
+              <h3 style="font-size:16px; font-weight:600; margin:0 0 8px 0; color:#fff;">No se encontraron modelos en la carpeta models/</h3>
+              <p style="font-size:13px; color:var(--text-muted); max-width:540px; margin:0 auto; line-height:1.5;">
+                Coloca tus archivos <code>.gguf</code> dentro de la carpeta <code>orchestrator/models/</code> para comenzar a usarlos.
+              </p>
+            </div>
+            """)
+        else:
+            sections_html.append(f"""
+            <div style="text-align:center; padding:48px 24px; background:var(--surface-1); border:1px dashed rgba(56, 189, 248, 0.35); border-radius:14px; margin-bottom:36px;">
+              <div style="font-size:40px; margin-bottom:12px;">⚡</div>
+              <h3 style="font-size:16px; font-weight:600; margin:0 0 8px 0; color:#fff;">¡Se detectaron {len(all_found)} archivo(s) .gguf en models/!</h3>
+              <p style="font-size:13px; color:var(--text-muted); max-width:540px; margin:0 auto 18px auto; line-height:1.5;">
+                Tienes modelos listos en disco pero aún no has registrado un perfil en <code>config.json</code>. Haz clic abajo para crear tu primer perfil y asignarlo a una familia.
+              </p>
+              <button type="button" class="btn-create-global" onclick="openCreateModal()">+ Crear Perfil para tu Modelo</button>
+            </div>
+            """)
 
     lan_on = is_lan_allowed()
     local_ip = get_local_ip()
@@ -465,14 +517,24 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 self.wfile.write(b'{"error": "Modelo no encontrado"}')
             return
 
-        # 7. API: Carpetas disponibles para crear nuevo perfil
-        if self.path == "/api/model/folders":
-            folders = get_available_folders()
+        # 7. API: Catálogo completo de archivos .gguf para los modales
+        if self.path == "/api/catalog":
+            catalog = scan_all_available_gguf()
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self._send_cors()
             self.end_headers()
-            self.wfile.write(json.dumps(folders).encode("utf-8"))
+            self.wfile.write(json.dumps(catalog).encode("utf-8"))
+            return
+
+        # 8. API: Consultar si hubo un error al arrancar el último modelo
+        if self.path == "/api/last-error":
+            err = manager.get_last_error()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self._send_cors()
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": err}).encode("utf-8"))
             return
 
         # Si el modelo está corriendo y piden un recurso estático (slots, metrics, etc.), reenviar al backend
@@ -517,7 +579,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
             params = urllib.parse.parse_qs(body_str)
             target = params.get("model", [DEFAULT_MODEL])[0]
             print(f"\n[Panel Web] Clic manual del usuario -> Cargando '{target}' en GPU...")
-            ok = manager.ensure_model(target)
+            ok = manager.ensure_model(target, force_reload=True)
             if ok:
                 sync_console_status(f"Modelo cargado: '{target}'")
             self.send_response(303)
@@ -540,10 +602,6 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
         # API: Actualizar timeout del watchdog
         if self.path == "/api/settings/timeout":
-            if not self._is_loopback_client():
-                self.send_response(403)
-                self.end_headers()
-                return
             try:
                 data = json.loads(body.decode("utf-8")) if body else {}
                 mins = int(data.get("timeout", 10))
@@ -565,16 +623,17 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
         # API: Guardar perfil de modelo modificado
         if self.path == "/api/model/save":
-            if not self._is_loopback_client():
-                self.send_response(403)
-                self.end_headers()
-                return
             try:
                 data = json.loads(body.decode("utf-8")) if body else {}
-                model_id = data.get("id")
-                ok, msg = save_model_profile(model_id, data)
+                orig_id = data.get("original_id") or data.get("id")
+                ok, msg = save_model_profile(orig_id, data)
                 if ok:
-                    sync_console_status(f"Perfil '{model_id}' actualizado en config.json")
+                    new_id = data.get("id") or orig_id
+                    # Si el modelo renombrado está actualmente activo en GPU, actualizar referencia en caliente
+                    if manager.current_model == orig_id and new_id != orig_id:
+                        manager.current_model = new_id
+                    sync_console_status(f"Perfil '{new_id}' actualizado en config.json")
+                    trigger_background_sync()
                 self.send_response(200 if ok else 400)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self._send_cors()
@@ -590,17 +649,40 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
         # API: Crear nuevo perfil de modelo
         if self.path == "/api/model/create":
-            if not self._is_loopback_client():
-                self.send_response(403)
-                self.end_headers()
-                return
             try:
                 data = json.loads(body.decode("utf-8")) if body else {}
-                folder_name = data.get("folder")
                 profile_id = data.get("id")
-                ok, msg = create_model_profile(folder_name, profile_id, data)
+                ok, msg = create_model_profile(profile_id, data)
                 if ok:
-                    sync_console_status(f"Nuevo perfil '{profile_id}' creado en '{folder_name}'")
+                    sync_console_status(f"Nuevo perfil '{profile_id}' creado en config.json")
+                    trigger_background_sync()
+                self.send_response(200 if ok else 400)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self._send_cors()
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": ok, "message": msg}).encode("utf-8"))
+            except Exception as e:
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self._send_cors()
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+            return
+
+        # API: Eliminar perfil de modelo existente
+        if self.path == "/api/model/delete":
+            try:
+                data = json.loads(body.decode("utf-8")) if body else {}
+                profile_id = data.get("id")
+                # Si el modelo a eliminar está corriendo actualmente en GPU, detenerlo primero
+                if manager.current_model == profile_id:
+                    print(f"\n[Manager] [-] Deteniendo '{profile_id}' antes de eliminar perfil...")
+                    manager.stop_server()
+
+                ok, msg = delete_model_profile(profile_id)
+                if ok:
+                    sync_console_status(f"Perfil '{profile_id}' eliminado de config.json")
+                    trigger_background_sync()
                 self.send_response(200 if ok else 400)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self._send_cors()
@@ -735,15 +817,21 @@ def main():
     print(f"  • Chat Web (al activarse):  http://localhost:{BACKEND_PORT}")
     lan_info = f"ON (http://{get_local_ip()}:{PROXY_PORT})" if is_lan_allowed() else "OFF (Solo Localhost)"
     print(f"  • Red Local (Wi-Fi/LAN):    {lan_info}")
-    print("  • Modelos registrados:")
-    for m_id, cfg in MODELS.items():
-        print(f"     - {m_id:<18} ({cfg['ctx']} tokens) [{cfg.get('family', 'General')}]")
+    if MODELS:
+        print("  • Modelos registrados:")
+        for m_id, cfg in MODELS.items():
+            print(f"     - {m_id:<18} ({cfg['ctx']} tokens) [{cfg.get('family', 'General')}]")
+    else:
+        print("  • Modelos registrados:      Ninguno (No se encontraron modelos)")
     t_mins = get_idle_timeout_minutes()
     timeout_info = f"{t_mins} min de inactividad" if t_mins > 0 else "Desactivado (Nunca)"
     print(f"  • Auto-apagado:             {timeout_info}")
     print("=" * 64)
     print("Presiona Ctrl+C en esta ventana para cerrar el orquestador.\n")
     sync_console_status()
+
+    # Sincronización automática no intrusiva de clientes (OpenCode / Pi) en segundo plano
+    trigger_background_sync()
 
     server = QuietHTTPServer((PROXY_HOST, PROXY_PORT), ProxyHandler)
 

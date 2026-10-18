@@ -15,7 +15,9 @@ else:
     LLAMACPP_DIR = BASE_DIR
 
 LLAMA_SERVER_BIN = os.path.join(LLAMACPP_DIR, "llama-server.exe")
-MODELS_DIR = os.path.join(LLAMACPP_DIR, "models")
+
+# Directorio de modelos: 100% aislado y exclusivo dentro del orquestador
+MODELS_DIR = os.path.join(BASE_DIR, "models")
 
 # Configuración de Red
 PROXY_HOST = "0.0.0.0"
@@ -86,169 +88,172 @@ DEFAULT_CTX = 8192          # 8k tokens (arranque seguro universal para cualquie
 DEFAULT_CACHE_TYPE = "q8_0" # Estándar de oro de alta fidelidad para KV Cache
 
 
-def _resolve_path(base_folder, path_str):
-    """Resuelve la ruta si es relativa a la carpeta del modelo o mantiene la absoluta."""
-    if not path_str:
+CENTRAL_CONFIG_PATH = os.path.join(MODELS_DIR, "config.json")
+
+def ensure_central_config():
+    """Garantiza que exista la carpeta models/ y dentro de models/ el config.json vacío."""
+    os.makedirs(MODELS_DIR, exist_ok=True)
+    if not os.path.exists(CENTRAL_CONFIG_PATH):
+        try:
+            with open(CENTRAL_CONFIG_PATH, "w", encoding="utf-8") as f:
+                json.dump({"models": {}}, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+
+ensure_central_config()
+
+
+def get_search_directories():
+    """Retorna los directorios de búsqueda de modelos (exclusivamente interno del orquestador)."""
+    os.makedirs(MODELS_DIR, exist_ok=True)
+    return [MODELS_DIR]
+
+
+def find_model_file(filename_or_path):
+    """
+    Localiza un archivo .gguf exclusivamente dentro de orchestrator/models/.
+    No permite rutas externas fuera del directorio local.
+    """
+    if not filename_or_path:
         return None
-    if os.path.isabs(path_str):
-        return path_str
-    return os.path.abspath(os.path.join(base_folder, path_str))
+
+    fname = os.path.basename(filename_or_path)
+
+    # Si es ruta absoluta y está dentro de MODELS_DIR y existe, aceptarla
+    if os.path.isabs(filename_or_path):
+        norm_target = os.path.normpath(filename_or_path)
+        norm_models = os.path.normpath(MODELS_DIR)
+        if norm_target.startswith(norm_models) and os.path.exists(norm_target):
+            return norm_target
+
+    # Buscar exclusivamente en MODELS_DIR (y sus subcarpetas si las hubiera)
+    direct_try = os.path.join(MODELS_DIR, fname)
+    if os.path.exists(direct_try):
+        return os.path.abspath(direct_try)
+
+    for root, _, files in os.walk(MODELS_DIR):
+        if fname in files:
+            return os.path.abspath(os.path.join(root, fname))
+
+    return None
+
+
+def scan_all_available_gguf():
+    """
+    Escanea recursivamente todos los archivos .gguf disponibles en el sistema y los clasifica
+    amigablemente en modelos ejecutables, adaptadores de visión (mmproj) y aceleradores (draft/mtp).
+    """
+    models = []
+    projectors = []
+    drafts = []
+    all_files = []
+
+    seen = set()
+    for s_dir in get_search_directories():
+        for root, _, files in os.walk(s_dir):
+            for f in files:
+                if f.lower().endswith(".gguf") and f not in seen:
+                    seen.add(f)
+                    full_p = os.path.join(root, f)
+                    try:
+                        size_gb = round(os.path.getsize(full_p) / (1024**3), 2)
+                    except Exception:
+                        size_gb = 0
+
+                    item = {
+                        "filename": f,
+                        "path": full_p,
+                        "size_gb": size_gb,
+                    }
+                    all_files.append(item)
+
+                    f_lower = f.lower()
+                    if "mmproj" in f_lower:
+                        projectors.append(item)
+                    elif "draft" in f_lower or "mtp" in f_lower:
+                        drafts.append(item)
+                    else:
+                        models.append(item)
+
+    models.sort(key=lambda x: x["filename"].lower())
+    projectors.sort(key=lambda x: x["filename"].lower())
+    drafts.sort(key=lambda x: x["filename"].lower())
+    all_files.sort(key=lambda x: x["filename"].lower())
+
+    return {
+        "models": models,
+        "projectors": projectors,
+        "drafts": drafts,
+        "all": all_files,
+    }
 
 
 def load_models():
     """
-    Escanea dinámicamente cada subcarpeta en 'models/' buscando 'config.json'.
-    Soporta:
-      1. Formato multi-perfil: { "family": "...", "profiles": { "id": { ... } } }
-      2. Formato simple de perfil único: { "family": "...", "model_path": "...", ... }
-    Si una carpeta aún no tiene config.json (ej. modelo recién descargado), se omite silenciosamente sin romper nada.
+    Carga todos los perfiles de modelos desde el archivo único y central 'config.json'.
+    Resuelve automáticamente las rutas de archivos en disco.
     """
     discovered = {}
-    if not os.path.exists(MODELS_DIR):
+    if not os.path.exists(CENTRAL_CONFIG_PATH):
         return discovered
 
-    for entry in os.scandir(MODELS_DIR):
-        if not entry.is_dir():
+    try:
+        with open(CENTRAL_CONFIG_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception as e:
+        print(f"[Config] [!] Error leyendo {CENTRAL_CONFIG_PATH}: {e}")
+        return discovered
+
+    models_dict = data.get("models", {})
+    if not isinstance(models_dict, dict):
+        return discovered
+
+    for p_id, p_cfg in models_dict.items():
+        if not isinstance(p_cfg, dict):
             continue
 
-        config_path = os.path.join(entry.path, "config.json")
-        if not os.path.exists(config_path):
-            # Auto-descubrimiento Plug & Play: Si el usuario copia un .gguf a una carpeta nueva,
-            # Simple Llama auto-genera un perfil base sin necesidad de escribir JSON manualmente.
-            try:
-                ggufs = [f for f in os.listdir(entry.path) if f.lower().endswith(".gguf")]
-                if not ggufs:
-                    continue
-                non_proj = [f for f in ggufs if not any(x in f.lower() for x in ["mmproj", "mtp", "draft"])]
-                main_model = non_proj[0] if non_proj else ggufs[0]
-                clean_id = entry.name.lower().replace(" ", "-") + "-default"
-                init_data = {
-                    "family": entry.name.capitalize(),
-                    "profiles": {
-                        clean_id: {
-                            "model_path": main_model,
-                            "ctx": DEFAULT_CTX,
-                            "desc": f"{entry.name.capitalize()} (Detectado automáticamente, {DEFAULT_CTX} tokens)",
-                            "badge": f"{DEFAULT_CTX // 1024}k Tokens",
-                            "badge_color": "#38bdf8",
-                            "temp": 0.70,
-                            "top_p": 0.95,
-                            "top_k": 40,
-                            "cache_type_k": "q8_0",
-                            "cache_type_v": "q8_0",
-                            "fa": "on"
-                        }
-                    }
-                }
-                with open(config_path, "w", encoding="utf-8") as f:
-                    json.dump(init_data, f, indent=2, ensure_ascii=False)
-                data = init_data
-                print(f"[Config] [+] Nuevo modelo detectado en 'models/{entry.name}'. Configuración inicial auto-creada.")
-            except Exception as e:
-                print(f"[Config] [!] No se pudo auto-inicializar '{entry.name}': {e}")
-                continue
-        else:
-            try:
-                with open(config_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-            except Exception as e:
-                print(f"[Config] [!] Advertencia: Error leyendo {config_path}: {e}")
-                continue
+        raw_model_path = p_cfg.get("model_path")
+        full_model_path = find_model_file(raw_model_path)
+        file_exists = bool(full_model_path and os.path.exists(full_model_path))
 
-        default_family = data.get("family", entry.name.capitalize())
+        proj_file = p_cfg.get("projector_path")
+        full_proj = find_model_file(proj_file) if proj_file else None
 
-        # Caso 1: Archivo con múltiples perfiles ("profiles": { ... })
-        if "profiles" in data and isinstance(data["profiles"], dict):
-            for p_id, p_cfg in data["profiles"].items():
-                model_file = p_cfg.get("model_path") or p_cfg.get("model_file")
-                if not model_file:
-                    continue
+        draft_file = p_cfg.get("draft_path") or p_cfg.get("draft_model")
+        full_draft = find_model_file(draft_file) if draft_file else None
 
-                full_model_path = _resolve_path(entry.path, model_file)
-                projector_file = p_cfg.get("projector_path") or p_cfg.get("projector_file")
-                full_proj_path = _resolve_path(entry.path, projector_file) if projector_file else None
+        ctx = int(p_cfg.get("ctx", DEFAULT_CTX))
+        family = p_cfg.get("family", "Modelos Generales")
 
-                ctx = int(p_cfg.get("ctx", DEFAULT_CTX))
-                cache_type = p_cfg.get("cache_type", DEFAULT_CACHE_TYPE)
-                cache_type_k = p_cfg.get("cache_type_k", cache_type)
-                cache_type_v = p_cfg.get("cache_type_v", cache_type)
-
-                draft_file = p_cfg.get("draft_model") or p_cfg.get("draft_path")
-                full_draft_path = _resolve_path(entry.path, draft_file) if draft_file else None
-
-                discovered[p_id] = {
-                    "family": p_cfg.get("family", default_family),
-                    "model_path": full_model_path,
-                    "projector_path": full_proj_path,
-                    "draft_path": full_draft_path,
-                    "spec_type": p_cfg.get("spec_type", "draft-mtp" if full_draft_path else None),
-                    "spec_draft_n_max": p_cfg.get("spec_draft_n_max", None),
-                    "fa": p_cfg.get("fa", None),
-                    "ctx": ctx,
-                    "desc": p_cfg.get("desc", f"{default_family} ({ctx} tokens)"),
-                    "badge": p_cfg.get("badge", f"{ctx // 1024}k Tokens"),
-                    "badge_color": p_cfg.get("badge_color", "#0284c7"),
-                    "vision": bool(p_cfg.get("vision", False) or full_proj_path is not None),
-                    "cache_type_k": cache_type_k,
-                    "cache_type_v": cache_type_v,
-                    "temp": float(p_cfg.get("temp", 0.70)),
-                    "top_p": float(p_cfg.get("top_p", 0.95)),
-                    "top_k": int(p_cfg.get("top_k", 40)),
-                    "min_p": float(p_cfg["min_p"]) if "min_p" in p_cfg else None,
-                    "repeat_penalty": float(p_cfg["repeat_penalty"]) if "repeat_penalty" in p_cfg else None,
-                    "presence_penalty": float(p_cfg["presence_penalty"]) if "presence_penalty" in p_cfg else None,
-                    "system_prompt": p_cfg.get("system_prompt", data.get("system_prompt")),
-                    "chat_template": p_cfg.get("chat_template", data.get("chat_template", None)),
-                    "reasoning_budget": int(p_cfg["reasoning_budget"]) if "reasoning_budget" in p_cfg else (int(data["reasoning_budget"]) if "reasoning_budget" in data else None),
-                    "_config_path": config_path,
-                    "_folder_path": entry.path,
-                    "_folder_name": entry.name,
-                    "_profile_key": p_id,
-                    "_model_file": model_file,
-                    "_projector_file": projector_file,
-                    "_draft_file": draft_file,
-                }
-
-        # Caso 2: Perfil individual simple a nivel raíz
-        elif "model_path" in data or "model_file" in data:
-            p_id = data.get("name", entry.name)
-            model_file = data.get("model_path") or data.get("model_file")
-            full_model_path = _resolve_path(entry.path, model_file)
-            projector_file = data.get("projector_path") or data.get("projector_file")
-            full_proj_path = _resolve_path(entry.path, projector_file) if projector_file else None
-
-            cache_type = data.get("cache_type", DEFAULT_CACHE_TYPE)
-            cache_type_k = data.get("cache_type_k", cache_type)
-            cache_type_v = data.get("cache_type_v", cache_type)
-
-            ctx = int(data.get("ctx", DEFAULT_CTX))
-            discovered[p_id] = {
-                "family": default_family,
-                "model_path": full_model_path,
-                "projector_path": full_proj_path,
-                "ctx": ctx,
-                "desc": data.get("desc", f"{default_family} ({ctx} tokens)"),
-                "badge": data.get("badge", f"{ctx // 1024}k Tokens"),
-                "badge_color": data.get("badge_color", "#0284c7"),
-                "vision": bool(data.get("vision", False) or full_proj_path is not None),
-                "cache_type_k": cache_type_k,
-                "cache_type_v": cache_type_v,
-                "temp": float(data.get("temp", 0.70)),
-                "top_p": float(data.get("top_p", 0.95)),
-                "top_k": int(data.get("top_k", 40)),
-                "min_p": float(data["min_p"]) if "min_p" in data else None,
-                "repeat_penalty": float(data["repeat_penalty"]) if "repeat_penalty" in data else None,
-                "presence_penalty": float(data["presence_penalty"]) if "presence_penalty" in data else None,
-                "system_prompt": data.get("system_prompt"),
-                "reasoning_budget": int(data["reasoning_budget"]) if "reasoning_budget" in data else None,
-                "_config_path": config_path,
-                "_folder_path": entry.path,
-                "_folder_name": entry.name,
-                "_profile_key": None,
-                "_model_file": model_file,
-                "_projector_file": projector_file,
-                "_draft_file": None,
-            }
+        discovered[p_id] = {
+            "family": family,
+            "model_path": full_model_path or raw_model_path,
+            "model_file": os.path.basename(raw_model_path) if raw_model_path else "",
+            "projector_path": full_proj,
+            "projector_file": os.path.basename(proj_file) if proj_file else "",
+            "draft_path": full_draft,
+            "draft_file": os.path.basename(draft_file) if draft_file else "",
+            "spec_type": p_cfg.get("spec_type", "draft-mtp" if full_draft else None),
+            "spec_draft_n_max": p_cfg.get("spec_draft_n_max", None),
+            "fa": p_cfg.get("fa", "on"),
+            "ctx": ctx,
+            "desc": p_cfg.get("desc", f"{family} ({ctx} tokens)"),
+            "badge": p_cfg.get("badge", f"{ctx // 1024}k Tokens"),
+            "badge_color": p_cfg.get("badge_color", "#38bdf8"),
+            "vision": bool(p_cfg.get("vision", False) or full_proj is not None),
+            "cache_type_k": p_cfg.get("cache_type_k", "q8_0"),
+            "cache_type_v": p_cfg.get("cache_type_v", "q8_0"),
+            "temp": float(p_cfg.get("temp", 0.70)),
+            "top_p": float(p_cfg.get("top_p", 0.95)),
+            "top_k": int(p_cfg.get("top_k", 40)),
+            "min_p": float(p_cfg["min_p"]) if "min_p" in p_cfg and p_cfg["min_p"] is not None else None,
+            "repeat_penalty": float(p_cfg["repeat_penalty"]) if "repeat_penalty" in p_cfg and p_cfg["repeat_penalty"] is not None else None,
+            "presence_penalty": float(p_cfg["presence_penalty"]) if "presence_penalty" in p_cfg and p_cfg["presence_penalty"] is not None else None,
+            "system_prompt": p_cfg.get("system_prompt"),
+            "chat_template": p_cfg.get("chat_template"),
+            "reasoning_budget": int(p_cfg["reasoning_budget"]) if "reasoning_budget" in p_cfg and p_cfg["reasoning_budget"] is not None else None,
+            "file_exists": file_exists,
+        }
 
     return discovered
 
@@ -262,20 +267,20 @@ def reload_models():
     updated = load_models()
     MODELS.clear()
     MODELS.update(updated)
-    if "gemma4b-edge" in MODELS:
-        DEFAULT_MODEL = "gemma4b-edge"
+    if "gemma12b-edge" in MODELS:
+        DEFAULT_MODEL = "gemma12b-edge"
     elif MODELS:
         DEFAULT_MODEL = next(iter(MODELS))
     return MODELS
 
 
-DEFAULT_MODEL = "gemma4b-edge" if "gemma4b-edge" in MODELS else (next(iter(MODELS)) if MODELS else "gemma4b-edge")
+DEFAULT_MODEL = "gemma12b-edge" if "gemma12b-edge" in MODELS else (next(iter(MODELS)) if MODELS else "gemma12b-edge")
 
 
 def get_model_details(model_id):
     """
     Retorna la configuración completa del modelo y los archivos .gguf disponibles
-    en su carpeta para permitir edición visual sin tocar código.
+    en todo el sistema clasificados para facilitar su edición.
     """
     if model_id not in MODELS:
         reload_models()
@@ -283,21 +288,14 @@ def get_model_details(model_id):
         return None
 
     cfg = MODELS[model_id]
-    folder_path = cfg.get("_folder_path")
-    available_gguf = []
-    if folder_path and os.path.exists(folder_path):
-        for fname in os.listdir(folder_path):
-            if fname.lower().endswith(".gguf"):
-                available_gguf.append(fname)
-        available_gguf.sort()
+    catalog = scan_all_available_gguf()
 
     return {
         "id": model_id,
         "family": cfg.get("family", ""),
-        "folder_name": cfg.get("_folder_name", ""),
-        "model_file": cfg.get("_model_file", os.path.basename(cfg["model_path"])),
-        "projector_file": cfg.get("_projector_file", "") or "",
-        "draft_file": cfg.get("_draft_file", "") or "",
+        "model_file": cfg.get("model_file", os.path.basename(cfg["model_path"])),
+        "projector_file": cfg.get("projector_file", "") or "",
+        "draft_file": "__embedded__" if (cfg.get("spec_type") and not cfg.get("draft_file")) else (cfg.get("draft_file", "") or ""),
         "ctx": cfg.get("ctx", DEFAULT_CTX),
         "desc": cfg.get("desc", ""),
         "badge": cfg.get("badge", ""),
@@ -312,43 +310,37 @@ def get_model_details(model_id):
         "min_p": cfg.get("min_p"),
         "repeat_penalty": cfg.get("repeat_penalty"),
         "presence_penalty": cfg.get("presence_penalty"),
+        "reasoning_budget": cfg.get("reasoning_budget"),
         "system_prompt": cfg.get("system_prompt") or "",
-        "available_gguf": available_gguf,
+        "file_exists": cfg.get("file_exists", True),
+        "catalog": catalog,
     }
 
 
 def save_model_profile(model_id, payload):
     """
-    Guarda las modificaciones de un perfil en su archivo config.json correspondiente
+    Guarda las modificaciones de un perfil en el archivo único central config.json
     preservando el formato y recargando el catálogo en caliente.
     """
-    if model_id not in MODELS:
-        reload_models()
-    if model_id not in MODELS:
-        return False, f"Modelo '{model_id}' no encontrado"
-
-    cfg = MODELS[model_id]
-    config_path = cfg.get("_config_path")
-    if not config_path or not os.path.exists(config_path):
-        return False, f"No se encontró el archivo config.json para '{model_id}'"
+    if not os.path.exists(CENTRAL_CONFIG_PATH):
+        return False, "No se encontró config.json"
 
     try:
-        with open(config_path, "r", encoding="utf-8") as f:
+        with open(CENTRAL_CONFIG_PATH, "r", encoding="utf-8") as f:
             raw_data = json.load(f)
     except Exception as e:
-        return False, f"Error leyendo {config_path}: {e}"
+        return False, f"Error leyendo {CENTRAL_CONFIG_PATH}: {e}"
 
-    profile_key = cfg.get("_profile_key")
-    target_dict = None
+    if "models" not in raw_data:
+        raw_data["models"] = {}
 
-    if profile_key and "profiles" in raw_data and profile_key in raw_data["profiles"]:
-        target_dict = raw_data["profiles"][profile_key]
-    elif not profile_key:
-        target_dict = raw_data
-    else:
-        return False, f"No se encontró el perfil '{profile_key}' en el archivo de configuración"
+    if model_id not in raw_data["models"]:
+        return False, f"Modelo '{model_id}' no encontrado en config.json"
 
-    # Actualizar campos editables de manera controlada y tipada
+    target_dict = raw_data["models"][model_id]
+
+    if "family" in payload and payload["family"]:
+        target_dict["family"] = str(payload["family"]).strip()
     if "model_file" in payload and payload["model_file"]:
         target_dict["model_path"] = str(payload["model_file"]).strip()
     if "ctx" in payload:
@@ -399,121 +391,194 @@ def save_model_profile(model_id, payload):
         target_dict["cache_type_k"] = str(payload["cache_type_k"]).strip()
     if "cache_type_v" in payload and payload["cache_type_v"]:
         target_dict["cache_type_v"] = str(payload["cache_type_v"]).strip()
-    if "vision" in payload:
-        target_dict["vision"] = bool(payload["vision"])
     if "projector_file" in payload:
         proj = str(payload["projector_file"]).strip()
         if proj:
             target_dict["projector_path"] = proj
-        elif "projector_path" in target_dict:
-            del target_dict["projector_path"]
+            target_dict["vision"] = True
+        else:
+            target_dict["projector_path"] = None
+            target_dict["vision"] = False
     if "draft_file" in payload:
         draft = str(payload["draft_file"]).strip()
-        if draft:
-            target_dict["draft_model"] = draft
-        elif "draft_model" in target_dict:
-            del target_dict["draft_model"]
+        if draft == "__embedded__":
+            target_dict["draft_path"] = None
+            target_dict["spec_type"] = "draft-mtp"
+        elif draft:
+            target_dict["draft_path"] = draft
+            target_dict["spec_type"] = "draft-mtp"
+        else:
+            target_dict["draft_path"] = None
+            target_dict["spec_type"] = None
+    if "reasoning_budget" in payload:
+        try:
+            target_dict["reasoning_budget"] = int(payload["reasoning_budget"]) if payload["reasoning_budget"] not in ("", None) else None
+        except (ValueError, TypeError):
+            pass
     if "system_prompt" in payload:
         sp = str(payload["system_prompt"]).strip()
-        if sp:
-            target_dict["system_prompt"] = sp
-        elif "system_prompt" in target_dict:
-            del target_dict["system_prompt"]
+        target_dict["system_prompt"] = sp if sp else None
 
-    # Limpiar campos con valor None para mantener el JSON limpio
+    # Limpiar None
     keys_to_clean = [k for k, v in target_dict.items() if v is None]
     for k in keys_to_clean:
         del target_dict[k]
 
+    # Renombrado seguro de perfil si cambió el ID
+    raw_new_id = payload.get("new_id") or payload.get("id")
+    final_id = model_id
+    if raw_new_id:
+        import re
+        clean_new_id = str(raw_new_id).strip().lower()
+        clean_new_id = re.sub(r'[\s_]+', '-', clean_new_id)
+        clean_new_id = re.sub(r'[^a-z0-9\-\.\+]', '', clean_new_id)
+
+        if clean_new_id and clean_new_id != model_id:
+            if clean_new_id in raw_data["models"]:
+                return False, f"El ID '{clean_new_id}' ya existe en el catálogo"
+
+            # Reconstruir el diccionario conservando exactamente el mismo orden de los perfiles
+            ordered_models = {}
+            for k, v in raw_data["models"].items():
+                if k == model_id:
+                    ordered_models[clean_new_id] = target_dict
+                else:
+                    ordered_models[k] = v
+            raw_data["models"] = ordered_models
+            final_id = clean_new_id
+
     try:
-        with open(config_path, "w", encoding="utf-8") as f:
+        with open(CENTRAL_CONFIG_PATH, "w", encoding="utf-8") as f:
             json.dump(raw_data, f, indent=2, ensure_ascii=False)
         reload_models()
-        return True, "Configuración guardada correctamente"
+        return True, f"Perfil '{final_id}' guardado correctamente"
     except Exception as e:
-        return False, f"Error escribiendo {config_path}: {e}"
+        return False, f"Error escribiendo config.json: {e}"
 
 
-def get_available_folders():
-    """Retorna las carpetas en models/ con sus archivos .gguf para crear nuevos perfiles."""
-    folders = {}
-    if not os.path.exists(MODELS_DIR):
-        return folders
-
-    for entry in os.scandir(MODELS_DIR):
-        if not entry.is_dir():
-            continue
-        ggufs = [f for f in os.listdir(entry.path) if f.lower().endswith(".gguf")]
-        if ggufs:
-            config_path = os.path.join(entry.path, "config.json")
-            family = entry.name.capitalize()
-            if os.path.exists(config_path):
-                try:
-                    with open(config_path, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                        family = data.get("family", family)
-                except Exception:
-                    pass
-            folders[entry.name] = {
-                "folder": entry.name,
-                "family": family,
-                "gguf_files": sorted(ggufs),
-            }
-    return folders
-
-
-def create_model_profile(folder_name, profile_id, payload):
-    """Crea un nuevo perfil dentro de la carpeta especificada en models/."""
+def create_model_profile(profile_id, payload):
+    """
+    Crea un nuevo perfil en el archivo único central config.json sin depender de subcarpetas.
+    """
     profile_id = str(profile_id).strip().lower().replace(" ", "-")
     if not profile_id:
         return False, "El ID del perfil no puede estar vacío"
 
-    folder_path = os.path.join(MODELS_DIR, folder_name)
-    if not os.path.exists(folder_path):
-        return False, f"Carpeta '{folder_name}' no existe"
-
-    config_path = os.path.join(folder_path, "config.json")
-    raw_data = {"family": folder_name.capitalize(), "profiles": {}}
-    if os.path.exists(config_path):
+    if not os.path.exists(CENTRAL_CONFIG_PATH):
+        raw_data = {"models": {}}
+    else:
         try:
-            with open(config_path, "r", encoding="utf-8") as f:
-                loaded = json.load(f)
-                if isinstance(loaded, dict):
-                    raw_data = loaded
+            with open(CENTRAL_CONFIG_PATH, "r", encoding="utf-8") as f:
+                raw_data = json.load(f)
         except Exception as e:
-            return False, f"Error leyendo {config_path}: {e}"
+            return False, f"Error leyendo config.json: {e}"
 
-    if "profiles" not in raw_data or not isinstance(raw_data["profiles"], dict):
-        raw_data["profiles"] = {}
+    if "models" not in raw_data or not isinstance(raw_data["models"], dict):
+        raw_data["models"] = {}
 
-    if profile_id in raw_data["profiles"]:
-        return False, f"El ID '{profile_id}' ya existe en esta familia"
+    if profile_id in raw_data["models"]:
+        return False, f"El ID '{profile_id}' ya existe en el catálogo"
+
+    model_file = str(payload.get("model_file", "")).strip()
+    if not model_file:
+        return False, "Debes seleccionar un archivo de modelo (.gguf)"
+
+    family_name = str(payload.get("family", "")).strip() or "General"
+    ctx_val = int(payload.get("ctx", DEFAULT_CTX))
 
     new_profile = {
-        "model_path": payload.get("model_file", ""),
-        "ctx": int(payload.get("ctx", DEFAULT_CTX)),
-        "desc": str(payload.get("desc", f"{profile_id} perfil personalizado")),
-        "badge": str(payload.get("badge", "Custom")),
+        "family": family_name,
+        "model_path": model_file,
+        "ctx": ctx_val,
+        "desc": str(payload.get("desc", f"{family_name} ({ctx_val} tokens)")),
+        "badge": str(payload.get("badge", f"{ctx_val // 1024}k Tokens")),
         "badge_color": str(payload.get("badge_color", "#38bdf8")),
         "temp": float(payload.get("temp", 0.70)),
-        "top_p": float(payload.get("top_p", 0.95)),
-        "top_k": int(payload.get("top_k", 40)),
         "cache_type_k": str(payload.get("cache_type_k", "q8_0")),
         "cache_type_v": str(payload.get("cache_type_v", "q8_0")),
         "fa": "on" if str(payload.get("fa", "on")).lower() in ("on", "true", "1") else "off",
     }
+
+    if "top_p" in payload and payload["top_p"] not in ("", None):
+        try:
+            new_profile["top_p"] = float(payload["top_p"])
+        except (ValueError, TypeError):
+            pass
+    if "top_k" in payload and payload["top_k"] not in ("", None):
+        try:
+            new_profile["top_k"] = int(payload["top_k"])
+        except (ValueError, TypeError):
+            pass
+    if "min_p" in payload and payload["min_p"] not in ("", None):
+        try:
+            new_profile["min_p"] = float(payload["min_p"])
+        except (ValueError, TypeError):
+            pass
+    if "repeat_penalty" in payload and payload["repeat_penalty"] not in ("", None):
+        try:
+            new_profile["repeat_penalty"] = float(payload["repeat_penalty"])
+        except (ValueError, TypeError):
+            pass
+    if "presence_penalty" in payload and payload["presence_penalty"] not in ("", None):
+        try:
+            new_profile["presence_penalty"] = float(payload["presence_penalty"])
+        except (ValueError, TypeError):
+            pass
+    if "reasoning_budget" in payload and payload["reasoning_budget"] not in ("", None):
+        try:
+            new_profile["reasoning_budget"] = int(payload["reasoning_budget"])
+        except (ValueError, TypeError):
+            pass
+
     if payload.get("projector_file"):
         new_profile["projector_path"] = str(payload["projector_file"]).strip()
         new_profile["vision"] = True
+    if payload.get("draft_file"):
+        df = str(payload["draft_file"]).strip()
+        if df == "__embedded__":
+            new_profile["draft_path"] = None
+            new_profile["spec_type"] = "draft-mtp"
+        elif df:
+            new_profile["draft_path"] = df
+            new_profile["spec_type"] = "draft-mtp"
     if payload.get("system_prompt"):
         new_profile["system_prompt"] = str(payload["system_prompt"]).strip()
 
-    raw_data["profiles"][profile_id] = new_profile
+    raw_data["models"][profile_id] = new_profile
 
     try:
-        with open(config_path, "w", encoding="utf-8") as f:
+        with open(CENTRAL_CONFIG_PATH, "w", encoding="utf-8") as f:
             json.dump(raw_data, f, indent=2, ensure_ascii=False)
         reload_models()
         return True, "Perfil creado correctamente"
     except Exception as e:
         return False, f"Error creando perfil: {e}"
+
+
+def delete_model_profile(profile_id):
+    """
+    Elimina un perfil de modelo del archivo único central config.json
+    sin tocar ningún archivo de peso .gguf en disco.
+    """
+    profile_id = str(profile_id).strip()
+    if not os.path.exists(CENTRAL_CONFIG_PATH):
+        return False, "No se encontró config.json"
+
+    try:
+        with open(CENTRAL_CONFIG_PATH, "r", encoding="utf-8") as f:
+            raw_data = json.load(f)
+    except Exception as e:
+        return False, f"Error leyendo config.json: {e}"
+
+    if "models" not in raw_data or profile_id not in raw_data["models"]:
+        return False, f"El perfil '{profile_id}' no existe en config.json"
+
+    del raw_data["models"][profile_id]
+
+    try:
+        with open(CENTRAL_CONFIG_PATH, "w", encoding="utf-8") as f:
+            json.dump(raw_data, f, indent=2, ensure_ascii=False)
+        reload_models()
+        return True, f"Perfil '{profile_id}' eliminado correctamente"
+    except Exception as e:
+        return False, f"Error al guardar config.json tras eliminar: {e}"

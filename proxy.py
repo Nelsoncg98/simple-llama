@@ -43,6 +43,34 @@ from config import (
 from manager import manager
 
 
+def set_console_title(title):
+    """Actualiza la barra de título de la consola de Windows / Terminal en tiempo real."""
+    try:
+        import ctypes
+        ctypes.windll.kernel32.SetConsoleTitleW(title)
+    except Exception:
+        pass
+
+
+def sync_console_status(event_msg=None):
+    """Sincroniza la barra de título de la consola y emite un log de estado actualizado en CMD."""
+    model_name = manager.current_model or "En reposo (0 MB VRAM)"
+    lan_on = is_lan_allowed()
+    local_ip = get_local_ip()
+    lan_str = f"LAN: ON ({local_ip})" if lan_on else "LAN: OFF"
+    t_mins = get_idle_timeout_minutes()
+    timeout_str = f"Reposo: {t_mins}m" if t_mins > 0 else "Reposo: OFF"
+
+    set_console_title(f"Simple Llama • {model_name} • {lan_str} • {timeout_str}")
+
+    if event_msg:
+        print(f"\n[Consola Actualizada] >>> {event_msg}")
+        print(f"  • Modelo activo:   {model_name}")
+        print(f"  • Red Wi-Fi/LAN:   {'ON (http://' + local_ip + ':' + str(PROXY_PORT) + ')' if lan_on else 'OFF (Solo Localhost)'}")
+        print(f"  • Auto-apagado:    {str(t_mins) + ' min' if t_mins > 0 else 'Desactivado (Nunca)'}")
+        print("-" * 64)
+
+
 # Rutas que representan prompts reales (solo estas deben despertar la GPU automáticamente)
 INFERENCE_PATHS = {
     "/v1/chat/completions",
@@ -132,7 +160,7 @@ def render_dashboard():
     except Exception:
         return "<h1>Error: No se encontró templates/dashboard.html</h1>"
 
-    status_label = manager.current_model or "En reposo (0 MB VRAM)"
+    status_label = manager.current_model or "Ninguno (0 MB VRAM)"
     is_active = manager.current_model is not None
 
     if is_active:
@@ -144,7 +172,7 @@ def render_dashboard():
             '</form>'
         )
     else:
-        action_buttons = '<div class="status-indicator idle"><span class="dot-ping"></span> EN REPOSO (0 MB VRAM)</div>'
+        action_buttons = '<div class="status-indicator idle"><span class="dot-ping"></span> EN REPOSO</div>'
 
     # Selector dinámico de watchdog timeout
     current_timeout = get_idle_timeout_minutes()
@@ -472,7 +500,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 cfg["lan_access"] = not cfg.get("lan_access", False)
                 save_settings(cfg)
                 status_str = "ACTIVADO (ON)" if cfg["lan_access"] else "DESACTIVADO (OFF)"
-                print(f"\n[Seguridad] Acceso a Red Local (Wi-Fi/LAN) {status_str} por el usuario.")
+                sync_console_status(f"Red Local Wi-Fi/LAN: {status_str}")
             self.send_response(303)
             self.send_header("Location", "/")
             self.end_headers()
@@ -489,7 +517,9 @@ class ProxyHandler(BaseHTTPRequestHandler):
             params = urllib.parse.parse_qs(body_str)
             target = params.get("model", [DEFAULT_MODEL])[0]
             print(f"\n[Panel Web] Clic manual del usuario -> Cargando '{target}' en GPU...")
-            manager.ensure_model(target)
+            ok = manager.ensure_model(target)
+            if ok:
+                sync_console_status(f"Modelo cargado: '{target}'")
             self.send_response(303)
             self.send_header("Location", "/")
             self.end_headers()
@@ -499,6 +529,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
         if self.path == "/unload":
             print("\n[Panel Web] Clic manual del usuario -> Liberando GPU y RAM...")
             manager.stop_server()
+            sync_console_status("GPU y memoria liberadas (0 MB VRAM)")
             self.send_response(303)
             self.send_header("Location", "/")
             self.end_headers()
@@ -517,7 +548,8 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 data = json.loads(body.decode("utf-8")) if body else {}
                 mins = int(data.get("timeout", 10))
                 set_idle_timeout(mins)
-                print(f"\n[Config] Watchdog timeout actualizado a: {mins} minutos.")
+                t_msg = f"{mins} minutos" if mins > 0 else "Desactivado (Nunca)"
+                sync_console_status(f"Auto-apagado: {t_msg}")
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self._send_cors()
@@ -541,7 +573,8 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 data = json.loads(body.decode("utf-8")) if body else {}
                 model_id = data.get("id")
                 ok, msg = save_model_profile(model_id, data)
-                print(f"\n[Config] Guardar perfil '{model_id}': {'OK' if ok else msg}")
+                if ok:
+                    sync_console_status(f"Perfil '{model_id}' actualizado en config.json")
                 self.send_response(200 if ok else 400)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self._send_cors()
@@ -566,7 +599,8 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 folder_name = data.get("folder")
                 profile_id = data.get("id")
                 ok, msg = create_model_profile(folder_name, profile_id, data)
-                print(f"\n[Config] Crear perfil '{profile_id}' en '{folder_name}': {'OK' if ok else msg}")
+                if ok:
+                    sync_console_status(f"Nuevo perfil '{profile_id}' creado en '{folder_name}'")
                 self.send_response(200 if ok else 400)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self._send_cors()
@@ -709,6 +743,7 @@ def main():
     print(f"  • Auto-apagado:             {timeout_info}")
     print("=" * 64)
     print("Presiona Ctrl+C en esta ventana para cerrar el orquestador.\n")
+    sync_console_status()
 
     server = QuietHTTPServer((PROXY_HOST, PROXY_PORT), ProxyHandler)
 

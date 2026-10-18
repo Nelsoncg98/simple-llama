@@ -521,24 +521,33 @@
     transform: translateY(10px);
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     pointer-events: none;
+    z-index: 100;
+  }
+
+  #toast.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
   /* Card bottom bar & Config button */
   .card-bottom {
     display: flex;
     align-items: center;
     gap: 8px;
     margin-top: auto;
+    width: 100%;
   }
 
   .btn-config {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    width: 38px;
+    height: 38px;
     background: var(--surface-2);
     border: 1px solid var(--border-subtle);
     border-radius: 8px;
-    color: var(--text-muted);
+    color: var(--text-secondary);
     cursor: pointer;
     transition: all 0.15s ease;
     flex-shrink: 0;
@@ -741,7 +750,7 @@
 
   <div class="status-card">
     <div class="status-meta">
-      <div class="status-tag">Estado de la GPU</div>
+      <div class="status-tag">Modelo en Memoria</div>
       <div class="status-val">{{STATUS_LABEL}}</div>
     </div>
     <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">

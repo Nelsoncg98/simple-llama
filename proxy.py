@@ -161,14 +161,14 @@ def render_dashboard():
 
     if is_active:
         action_buttons = (
-            '<span style="background:#166534;color:#86efac;font-weight:700;padding:6px 14px;border-radius:20px;font-size:13px;">GPU ACTIVA</span> '
+            '<span style="background:#052e16;color:#4ade80;border:1px solid #166534;font-weight:600;padding:5px 12px;border-radius:20px;font-size:12px;">GPU ACTIVA</span> '
             f'<a href="http://localhost:{BACKEND_PORT}" target="_blank" class="btn-chat">Abrir Chat Web ({BACKEND_PORT}) &#8599;</a> '
             '<form method="POST" action="/unload" style="display:inline-block; margin-left:8px; margin-bottom:0;">'
             '<button type="submit" class="btn-danger">Liberar GPU</button>'
             '</form>'
         )
     else:
-        action_buttons = '<span style="background:#334155;color:#94a3b8;font-weight:700;padding:6px 14px;border-radius:20px;font-size:13px;">EN REPOSO (0 MB VRAM)</span>'
+        action_buttons = '<span style="background:#18181b;color:#71717a;border:1px solid #27272a;font-weight:600;padding:5px 12px;border-radius:20px;font-size:12px;">EN REPOSO (0 MB VRAM)</span>'
 
     # Agrupar modelos por familia dinámicamente
     families = {}
@@ -182,17 +182,17 @@ def render_dashboard():
     for fam_name, models_in_fam in families.items():
         cards_html = []
         for m_id, cfg in models_in_fam:
-            badge_color = cfg.get("badge_color", "#0284c7")
+            badge_color = cfg.get("badge_color", "#38bdf8")
             badge_text = cfg.get("badge", f"{cfg['ctx']} tokens")
             btn_text = "Lanzar con Visión" if cfg.get("vision") else "Lanzar en GPU"
-            btn_bg = "background:#9333ea;" if cfg.get("vision") else ""
+            btn_bg = "background:#2e1065;border-color:#581c87;color:#d8b4fe;" if cfg.get("vision") else ""
 
             cards_html.append(f"""
             <div class="card">
               <div class="card-top">
                 <div class="card-header">
                   <h3>{m_id}</h3>
-                  <span class="badge" style="background:{badge_color}22; color:{badge_color}; border:1px solid {badge_color}44;">{badge_text}</span>
+                  <span class="badge" style="background:{badge_color}18; color:{badge_color}; border:1px solid {badge_color}33;">{badge_text}</span>
                 </div>
                 <p>{cfg['desc']}</p>
               </div>

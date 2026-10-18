@@ -7,13 +7,14 @@
 <style>
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    background: #0b0f19;
-    color: #f8fafc;
+    background: #09090b;
+    color: #ededed;
     margin: 0;
-    padding: 24px;
+    padding: 28px 24px;
+    -webkit-font-smoothing: antialiased;
   }
   .container {
-    max-width: 860px;
+    max-width: 880px;
     margin: 0 auto;
   }
   header {
@@ -21,54 +22,59 @@
   }
   h1 {
     font-size: 26px;
+    font-weight: 700;
     margin: 0 0 6px 0;
-    color: #38bdf8;
+    color: #fafafa;
     display: flex;
     align-items: center;
     gap: 10px;
+    letter-spacing: -0.5px;
   }
   .subtitle {
-    color: #94a3b8;
+    color: #71717a;
     margin: 0;
-    font-size: 14px;
+    font-size: 13px;
   }
   .status-card {
-    background: #131b2e;
-    border: 1px solid #1e293b;
-    border-radius: 14px;
-    padding: 18px 24px;
+    background: #111113;
+    border: 1px solid #27272a;
+    border-radius: 12px;
+    padding: 16px 22px;
     margin-bottom: 28px;
     display: flex;
     justify-content: space-between;
     align-items: center;
     flex-wrap: wrap;
     gap: 12px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
   }
   .status-tag {
     font-size: 11px;
-    color: #94a3b8;
+    color: #71717a;
     text-transform: uppercase;
     letter-spacing: 1px;
     font-weight: 600;
   }
   .status-val {
-    font-size: 19px;
+    font-size: 18px;
     font-weight: 700;
     margin-top: 4px;
-    color: #f8fafc;
+    color: #f4f4f5;
   }
   .family-section {
-    margin-bottom: 30px;
+    margin-bottom: 32px;
   }
   .family-title {
-    font-size: 18px;
+    font-size: 16px;
+    font-weight: 600;
     margin: 0 0 14px 0;
-    color: #cbd5e1;
+    color: #a1a1aa;
     display: flex;
     align-items: center;
     gap: 8px;
-    border-bottom: 1px solid #1e293b;
+    border-bottom: 1px solid #1c1c1f;
     padding-bottom: 8px;
+    letter-spacing: -0.3px;
   }
   .grid {
     display: grid;
@@ -76,21 +82,23 @@
     gap: 16px;
   }
   .card {
-    background: #131b2e;
-    border: 1px solid #1e293b;
+    background: #111113;
+    border: 1px solid #27272a;
     border-radius: 12px;
     padding: 18px;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    transition: transform 0.15s, border-color 0.15s;
+    transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   }
   .card:hover {
-    border-color: #38bdf866;
+    border-color: #3f3f46;
     transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6);
   }
   .card-top {
-    margin-bottom: 14px;
+    margin-bottom: 16px;
   }
   .card-header {
     display: flex;
@@ -101,12 +109,14 @@
   }
   .card h3 {
     margin: 0;
-    font-size: 16px;
-    color: #f1f5f9;
+    font-size: 15px;
+    font-weight: 600;
+    color: #f4f4f5;
   }
   .badge {
     font-size: 11px;
-    font-weight: 700;
+    font-weight: 600;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     padding: 3px 8px;
     border-radius: 6px;
     white-space: nowrap;
@@ -114,91 +124,102 @@
   .card p {
     margin: 0;
     font-size: 13px;
-    color: #94a3b8;
+    color: #71717a;
     line-height: 1.45;
   }
   .btn {
     display: inline-block;
     width: 100%;
-    border: none;
+    border: 1px solid #3f3f46;
     cursor: pointer;
     text-align: center;
-    background: #0284c7;
-    color: white;
-    padding: 10px 14px;
+    background: #18181b;
+    color: #f4f4f5;
+    padding: 9px 14px;
     border-radius: 8px;
-    font-weight: 700;
+    font-weight: 600;
     font-size: 13px;
-    transition: background 0.2s;
+    transition: background 0.15s, border-color 0.15s;
     box-sizing: border-box;
   }
-  .btn:hover { background: #0369a1; }
-  .btn-danger {
-    background: #dc2626;
-    color: white;
-    padding: 8px 14px;
-    border-radius: 8px;
-    border: none;
-    font-weight: 700;
-    font-size: 13px;
-    cursor: pointer;
-    transition: 0.2s;
+  .btn:hover {
+    background: #27272a;
+    border-color: #52525b;
   }
-  .btn-danger:hover { background: #b91c1c; }
+  .btn-danger {
+    background: #18181b;
+    color: #f87171;
+    border: 1px solid #7f1d1d;
+    padding: 7px 13px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 12px;
+    cursor: pointer;
+    transition: 0.15s;
+  }
+  .btn-danger:hover {
+    background: #7f1d1d;
+    color: #fef2f2;
+  }
   .btn-chat {
-    background: #16a34a;
-    color: white;
-    padding: 8px 14px;
+    background: #18181b;
+    color: #4ade80;
+    border: 1px solid #166534;
+    padding: 7px 13px;
     border-radius: 8px;
     text-decoration: none;
-    font-weight: 700;
-    font-size: 13px;
+    font-weight: 600;
+    font-size: 12px;
     margin-left: 8px;
-    transition: 0.2s;
+    transition: 0.15s;
   }
-  .btn-chat:hover { background: #15803d; }
+  .btn-chat:hover {
+    background: #166534;
+    color: #f0fdf4;
+  }
   .btn-toggle {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 8px 14px;
+    padding: 7px 13px;
     border-radius: 8px;
-    font-size: 13px;
-    font-weight: 700;
+    font-size: 12px;
+    font-weight: 600;
     cursor: pointer;
-    border: 1px solid transparent;
-    transition: 0.2s;
+    transition: 0.15s;
     box-sizing: border-box;
   }
   .btn-toggle-off {
-    background: #1e293b;
-    color: #94a3b8;
-    border-color: #334155;
+    background: #18181b;
+    color: #71717a;
+    border: 1px solid #27272a;
   }
   .btn-toggle-off:hover {
-    background: #334155;
-    color: #f8fafc;
+    background: #27272a;
+    color: #a1a1aa;
+    border-color: #3f3f46;
   }
   .btn-toggle-on {
-    background: #065f46;
-    color: #34d399;
-    border-color: #059669;
+    background: #052e16;
+    color: #4ade80;
+    border: 1px solid #166534;
   }
   .btn-toggle-on:hover {
-    background: #047857;
+    background: #14532d;
   }
   footer {
-    margin-top: 36px;
+    margin-top: 40px;
     text-align: center;
     font-size: 12px;
-    color: #64748b;
+    color: #52525b;
     line-height: 1.6;
-    border-top: 1px solid #1e293b;
+    border-top: 1px solid #18181b;
     padding-top: 20px;
   }
   code {
-    background: #0284c722;
+    background: #18181b;
     color: #38bdf8;
+    border: 1px solid #27272a;
     padding: 2px 6px;
     border-radius: 4px;
     font-size: 12px;

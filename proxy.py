@@ -13,6 +13,7 @@ import urllib.request
 import urllib.error
 import urllib.parse
 import threading
+import secrets
 from html import escape as esc
 from socketserver import ThreadingMixIn
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -48,6 +49,36 @@ from config import (
 )
 import security
 from manager import manager
+
+# Registro thread-safe de inferencias activas para permitir cancelación limpia e inmediata
+_active_inferences_lock = threading.Lock()
+_active_inferences = {}  # stream_id: {"ip": ip, "res": backend_res, "stop_event": threading.Event()}
+
+
+def stop_inferences_for(ip=None, stop_all=False):
+    """
+    Corta conexiones activas hacia llama-server.
+    Si stop_all=True: detiene todas las inferencias en curso (solo admin).
+    Si ip especificada: detiene únicamente las de esa dirección IP.
+    Retorna la cantidad de peticiones detenidas.
+    """
+    stopped = 0
+    with _active_inferences_lock:
+        to_stop = []
+        for sid, info in list(_active_inferences.items()):
+            if stop_all or info.get("ip") == ip:
+                to_stop.append((sid, info))
+        for sid, info in to_stop:
+            try:
+                info["stop_event"].set()
+            except Exception:
+                pass
+            try:
+                info["res"].close()
+            except Exception:
+                pass
+            stopped += 1
+    return stopped
 
 
 def set_console_title(title):
@@ -193,8 +224,22 @@ def render_dashboard(role=security.ROLE_LOCAL):
             '<button type="submit" class="btn-danger">Liberar GPU</button>'
             '</form>'
         )
+        stop_buttons = (
+            '<button type="button" class="btn-stop-mine" onclick="stopInference(false)" title="Detiene solo las peticiones enviadas por este dispositivo">'
+            '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>'
+            '<span>Detener mi petición</span>'
+            '</button>'
+        )
+        if security.can_admin(role):
+            stop_buttons += (
+                ' <button type="button" class="btn-stop-all" onclick="stopInference(true)" title="Freno de emergencia: detiene todas las peticiones activas en GPU">'
+                '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>'
+                '<span>Detener todo</span>'
+                '</button>'
+            )
     else:
         action_buttons = '<div class="status-indicator idle"><span class="dot-ping"></span> EN REPOSO</div>'
+        stop_buttons = ''
 
     # Selector dinámico de watchdog timeout
     current_timeout = get_idle_timeout_minutes()
@@ -345,6 +390,7 @@ def render_dashboard(role=security.ROLE_LOCAL):
     html = html.replace("{{LAN_STATE_JSON}}", lan_state)
     html = html.replace("{{TIMEOUT_SELECTOR}}", timeout_selector_html)
     html = html.replace("{{ACTION_BUTTONS}}", action_buttons)
+    html = html.replace("{{STOP_BUTTONS}}", stop_buttons)
     html = html.replace("{{MODEL_SECTIONS}}", "\n".join(sections_html))
     html = html.replace("{{PROXY_PORT}}", str(PROXY_PORT))
     return html
@@ -404,15 +450,23 @@ def render_public_page(message=None):
         admin_html = '<p class="muted-text">La administración remota está deshabilitada en este servidor. Administra desde la PC local.</p>'
 
     if is_active:
-        chat_button = f'<div style="margin-top:14px;"><a href="http://{esc(ip)}:{UI_PORT}" target="_blank" class="btn-chat">Abrir Chat Web &#8599;</a></div>'
+        chat_button = f'<a href="http://{esc(ip)}:{UI_PORT}" target="_blank" class="btn-chat">Abrir Chat Web &#8599;</a>'
+        stop_button = (
+            '<button type="button" class="btn-stop-mine" onclick="stopMyInference()" title="Detener peticiones activas de este dispositivo">'
+            '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>'
+            '<span>Detener mi petición</span>'
+            '</button>'
+        )
     else:
-        chat_button = '<p class="muted-text" style="margin-top:10px; font-size:12px;">Chat web disponible cuando el administrador active un modelo.</p>'
+        chat_button = '<p class="muted-text" style="font-size:12px;">Chat web disponible cuando el administrador active un modelo.</p>'
+        stop_button = ''
 
     html = html.replace("{{IP}}", esc(ip))
     html = html.replace("{{PORT}}", str(PROXY_PORT))
     html = html.replace("{{ACTIVE_MODEL}}", esc(active_name))
     html = html.replace("{{DOT_CLASS}}", dot_class)
     html = html.replace("{{CHAT_BUTTON}}", chat_button)
+    html = html.replace("{{STOP_BUTTON}}", stop_button)
     html = html.replace("{{MODELS_BADGES}}", badges_html)
     html = html.replace("{{ADMIN_SECTION}}", admin_html)
     return html
@@ -579,17 +633,33 @@ class GuardedHandler(BaseHTTPRequestHandler):
                 start_t = time.time()
                 tail = b""          # Solo la cola de la respuesta (el uso de tokens llega al final)
                 stream_events = 0
+                stream_id = secrets.token_hex(6)
+                stop_ev = threading.Event()
+                client_ip = self.client_address[0]
 
-                # Streaming chunk por chunk
-                while True:
-                    chunk = backend_res.read(1024)
-                    if not chunk:
-                        break
-                    self.wfile.write(chunk)
-                    self.wfile.flush()
-                    tail = (tail + chunk)[-8192:]
-                    stream_events += chunk.count(b"data: {")
-                    manager.touch()
+                with _active_inferences_lock:
+                    _active_inferences[stream_id] = {"ip": client_ip, "res": backend_res, "stop_event": stop_ev}
+
+                try:
+                    # Streaming chunk por chunk
+                    while not stop_ev.is_set():
+                        try:
+                            chunk = backend_res.read(1024)
+                        except Exception:
+                            break
+                        if not chunk or stop_ev.is_set():
+                            break
+                        try:
+                            self.wfile.write(chunk)
+                            self.wfile.flush()
+                        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+                            break
+                        tail = (tail + chunk)[-8192:]
+                        stream_events += chunk.count(b"data: {")
+                        manager.touch()
+                finally:
+                    with _active_inferences_lock:
+                        _active_inferences.pop(stream_id, None)
 
                 elapsed = round(time.time() - start_t, 2)
                 manager.touch()
@@ -597,15 +667,18 @@ class GuardedHandler(BaseHTTPRequestHandler):
 
                 # Mostrar métricas de tokens y velocidad para benchmarks
                 if client_label:
-                    m_comp = re.search(rb'"completion_tokens"\s*:\s*(\d+)', tail)
-                    if m_comp:
-                        total_tokens = int(m_comp.group(1))
+                    if stop_ev.is_set():
+                        print(f"[{client_label}] Inferencia detenida a petición del usuario a los {elapsed}s.")
                     else:
-                        total_tokens = stream_events
+                        m_comp = re.search(rb'"completion_tokens"\s*:\s*(\d+)', tail)
+                        if m_comp:
+                            total_tokens = int(m_comp.group(1))
+                        else:
+                            total_tokens = stream_events
 
-                    if total_tokens > 0:
-                        speed = round(total_tokens / elapsed, 2) if elapsed > 0 else 0
-                        print(f"[{client_label}] [OK] Finalizado: {total_tokens} tokens en {elapsed}s ({speed} t/s)")
+                        if total_tokens > 0:
+                            speed = round(total_tokens / elapsed, 2) if elapsed > 0 else 0
+                            print(f"[{client_label}] [OK] Finalizado: {total_tokens} tokens en {elapsed}s ({speed} t/s)")
 
         except urllib.error.HTTPError as e:
             self.send_response(e.code)
@@ -834,6 +907,35 @@ class ProxyHandler(GuardedHandler):
         # 3. FILTRO ESTRICTO DE INFERENCIA (único POST permitido a clientes sin permisos de administración)
         if is_inference:
             self._handle_inference()
+            return
+
+        # API: Detener inferencia activa (permitido para invitados y administradores con seguridad por rol)
+        if path == "/api/stop":
+            body = self._read_body()
+            if body is None:
+                return
+            want_all = False
+            try:
+                data = json.loads(body.decode("utf-8")) if body else {}
+                want_all = bool(data.get("all", False))
+            except Exception:
+                want_all = False
+
+            is_admin = security.can_admin(self.role)
+            if want_all and not is_admin:
+                self._send_json(403, {"success": False, "error": "Solo el administrador puede detener todas las peticiones."})
+                return
+
+            client_ip = self.client_address[0]
+            target_ip = None if (want_all and is_admin) else client_ip
+            count = stop_inferences_for(ip=target_ip, stop_all=(want_all and is_admin))
+            scope = "todas las peticiones" if (want_all and is_admin) else f"peticiones de {client_ip}"
+            print(f"\n[Manager] [Detención] Solicitada desde {client_ip} ({scope}) -> {count} detenida(s)")
+            self._send_json(200, {
+                "success": True,
+                "stopped": count,
+                "message": f"Se detuvieron {count} peticiones" if count else "No había peticiones activas en curso"
+            })
             return
 
         # --- Desde aquí todo requiere permisos de administración ---

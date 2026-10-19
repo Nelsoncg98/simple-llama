@@ -34,6 +34,8 @@
    - **Modo Hogar:** Arranque seguro con LAN apagada por defecto. Encendido en un clic para acceso de dispositivos del hogar y **botón de corte remoto ("Kill Switch")** desde el celular. *Network Watcher* apaga la red automáticamente ante cambios de Wi-Fi o activación de VPNs.
    - **Modo Público:** Comparte la IA con amigos o compañeros permitiéndoles chatear o usar la API, con límites de tokens y sin permitirles conmutar modelos ni tocar la configuración del servidor, la cual queda protegida mediante PIN de administrador.
 8. **Persistencia Atómica a Prueba de Fallos:** Catálogo protegido contra cortes de luz mediante escritura atómica (`atomic_write_json`) y respaldos automáticos `.bak` en sincronizaciones.
+9. **Cancelación Quirúrgica de Inferencia:** Detén cualquier respuesta activa en 0.1s desde el panel web sin apagar el modelo ni vaciar la VRAM. Aislamiento estricto por cliente: un dispositivo puede frenar únicamente su propia consulta (`Detener mi petición`) sin interrumpir a otros usuarios en la red local. El administrador cuenta además con freno de emergencia global (`Detener todo`).
+10. **Tarjeta de Estado Simétrica en 2 Filas:** Panel superior estructurado en dos niveles limpios (arriba: modelo en memoria y chat; abajo: conectividad LAN, temporizador y botones de parada), garantizando una interfaz sobria que nunca se descuadra en ningún dispositivo.
 
 ---
 
@@ -204,6 +206,7 @@ Si deseas compartir tu potencia de IA con otras personas en tu red local (oficin
 | **Flash Attention (FA)** | Variable según versión | **Control explícito (`-fa on`)** |
 | **Control de KV Cache** | Fijo no configurable | **Personalizable por perfil (`q8_0`, `q4_0`, `f16`)** |
 | **Concurrencia en Streaming** | Panel bloqueado a menudo | **Multihilo:** Panel y control accesibles durante inferencia |
+| **Cancelación de Inferencia** | Si el cliente no cierra el socket, la GPU sigue generando | **Quirúrgica por web:** Detención selectiva por IP o global en 0.1s |
 | **Dependencias del Sistema** | Servicio en segundo plano / Go | **Cero dependencias externas:** Python estándar puro |
 
 ---
@@ -233,6 +236,12 @@ Ejecuta el script incluido **`sync_opencode.py`**: escaneará los modelos activo
 * **Base URL:** `http://localhost:11435/v1`
 * **API Key:** `sk-local` (o cualquier valor de texto).
 * **Model ID:** El nombre exacto del perfil (ej. `gemma12b-q3ks-edge`, `ornith-edge`).
+
+### 4. Obsidian (Copilot) & Chatbox
+Compatible de forma nativa como proveedor OpenAI personalizado:
+* **Base URL / Endpoint:** `http://localhost:11435/v1` (o con la IP de tu PC en la red local: `http://192.168.x.x:11435/v1`).
+* **API Key:** `sk-local` (o cualquier texto).
+* **Streaming:** Totalmente funcional con recepción token a token y cancelación inmediata disponible desde el panel web.
 
 ---
 
